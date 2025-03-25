@@ -1,0 +1,5 @@
+assemblyai>=0.20.0
+customtkinter>=5.2.0
+pydub>=0.25.1
+python-dotenv>=1.0.0
+certifi>=2024.2.2 
