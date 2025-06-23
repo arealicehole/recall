@@ -45,8 +45,8 @@ class TranscriberApp(ctk.CTk):
         
         self.select_file_btn = ctk.CTkButton(
             self.btn_frame,
-            text="Select File",
-            command=self.select_file
+            text="Select Files",
+            command=self.select_files
         )
         self.select_file_btn.pack(side=tk.LEFT, padx=5)
         
@@ -184,20 +184,29 @@ class TranscriberApp(ctk.CTk):
             self.output_path.delete(0, tk.END)
             self.output_path.insert(0, dir_path)
             
-    def select_file(self):
+    def select_files(self):
+        """Select multiple audio files for transcription"""
         filetypes = [("Audio Files", " ".join(f"*{fmt}" for fmt in self.config.supported_formats))]
-        file_path = filedialog.askopenfilename(filetypes=filetypes)
-        if file_path:
-            self.current_files = [file_path]
+        file_paths = filedialog.askopenfilenames(filetypes=filetypes)
+        if file_paths:
+            self.current_files = list(file_paths)
             self.update_files_list()
             self.update_status("Ready", "info")
             
             # Update output directory if checkbox is checked
             if self.same_dir_var.get():
-                input_dir = os.path.dirname(file_path)
-                self.output_path.delete(0, tk.END)
-                self.output_path.insert(0, input_dir)
-                self.config.output_dir = input_dir
+                # When "Same as input" is enabled, each file will be saved in its own directory
+                # Check if all files are from the same directory for display purposes
+                directories = [os.path.dirname(path) for path in file_paths]
+                if len(set(directories)) == 1:
+                    # All files are from the same directory - show that directory
+                    input_dir = directories[0]
+                    self.output_path.delete(0, tk.END)
+                    self.output_path.insert(0, input_dir)
+                else:
+                    # Files are from different directories - show a message indicating this
+                    self.output_path.delete(0, tk.END)
+                    self.output_path.insert(0, "[Multiple directories - each transcript saved with its source]")
     
     def select_directory(self):
         dir_path = filedialog.askdirectory()
@@ -213,9 +222,21 @@ class TranscriberApp(ctk.CTk):
                 self.config.output_dir = dir_path
     
     def update_files_list(self):
+        """Update the files list display with selected files"""
         self.files_text.delete("0.0", tk.END)
-        for file in self.current_files:
-            self.files_text.insert(tk.END, f"{os.path.basename(file)}\n")
+        if not self.current_files:
+            self.files_text.insert(tk.END, "No files selected")
+            return
+            
+        # Show count of selected files
+        file_count = len(self.current_files)
+        self.files_text.insert(tk.END, f"Selected {file_count} file{'s' if file_count != 1 else ''}:\n\n")
+        
+        for i, file in enumerate(self.current_files, 1):
+            file_name = os.path.basename(file)
+            file_dir = os.path.dirname(file)
+            self.files_text.insert(tk.END, f"{i}. {file_name}\n")
+            self.files_text.insert(tk.END, f"   {file_dir}\n\n")
     
     def update_status(self, message: str, status: str):
         """Update status with color coding"""
@@ -268,20 +289,28 @@ class TranscriberApp(ctk.CTk):
     def toggle_same_directory(self):
         """Handle checkbox state change for same directory option"""
         if self.same_dir_var.get():
-            # If we have files selected, use their directory
+            # If we have files selected, show appropriate directory info
             if self.current_files:
-                input_dir = os.path.dirname(self.current_files[0])
-                self.output_path.delete(0, tk.END)
-                self.output_path.insert(0, input_dir)
-                self.config.output_dir = input_dir
+                directories = [os.path.dirname(path) for path in self.current_files]
+                if len(set(directories)) == 1:
+                    # All files are from the same directory
+                    input_dir = directories[0]
+                    self.output_path.delete(0, tk.END)
+                    self.output_path.insert(0, input_dir)
+                else:
+                    # Files are from different directories
+                    self.output_path.delete(0, tk.END)
+                    self.output_path.insert(0, "[Multiple directories - each transcript saved with its source]")
             
             # Disable output directory controls
             self.output_path.configure(state=tk.DISABLED)
             self.select_output_btn.configure(state=tk.DISABLED)
         else:
-            # Re-enable output directory controls
+            # Re-enable output directory controls and restore original output directory
             self.output_path.configure(state=tk.NORMAL)
             self.select_output_btn.configure(state=tk.NORMAL)
+            self.output_path.delete(0, tk.END)
+            self.output_path.insert(0, self.config.output_dir)
     
     def start_transcription(self):
         if not self.current_files:
@@ -349,7 +378,9 @@ class TranscriberApp(ctk.CTk):
                         self.audio_handler.cleanup_temp_file(prepared_path)
                     
                     if transcription:
-                        output_path = self.transcriber.save_transcription(file_path, transcription)
+                        # Check if we should save in the same directory as the input file
+                        save_same_as_input = self.same_dir_var.get()
+                        output_path = self.transcriber.save_transcription(file_path, transcription, save_same_as_input)
                         if output_path:
                             self.update_progress(
                                 f"Saved transcription to: {output_path}",

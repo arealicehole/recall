@@ -111,10 +111,23 @@ class Transcriber:
                 progress_callback(error_msg, -1, "error", {"metrics": str(metrics) if 'metrics' in locals() else ""})
             return ""
     
-    def save_transcription(self, audio_path: str, transcription: str) -> str:
-        """Save transcription to file"""
+    def save_transcription(self, audio_path: str, transcription: str, same_as_input: bool = False) -> str:
+        """Save transcription to file
+        
+        Args:
+            audio_path: Path to the original audio file
+            transcription: The transcription text to save
+            same_as_input: If True, save in the same directory as the audio file
+        """
         try:
-            out_path = Path(self.config.output_dir) / f"{Path(audio_path).stem}_transcription.txt"
+            if same_as_input:
+                # Save in the same directory as the audio file
+                audio_dir = Path(audio_path).parent
+                out_path = audio_dir / f"{Path(audio_path).stem}_transcription.txt"
+            else:
+                # Save in the configured output directory
+                out_path = Path(self.config.output_dir) / f"{Path(audio_path).stem}_transcription.txt"
+            
             out_path.write_text(transcription, encoding='utf-8')
             return str(out_path)
         except Exception as e:
