@@ -40,19 +40,29 @@ class Transcriber:
         os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
         os.environ['CURL_CA_BUNDLE'] = certifi.where()
         
-        # Initialize AssemblyAI client with API key
-        aai.settings.api_key = config.api_key
-        
-        # Create transcriber with nano model and speaker labels
-        config = aai.TranscriptionConfig(
-            speaker_labels=True,
-            speech_model=aai.SpeechModel.nano
-        )
-        self.transcriber = aai.Transcriber(config=config)
+        # Initialize AssemblyAI client with API key (if available)
+        if config.api_key:
+            aai.settings.api_key = config.api_key
+            
+            # Create transcriber with nano model and speaker labels
+            transcriber_config = aai.TranscriptionConfig(
+                speaker_labels=True,
+                speech_model=aai.SpeechModel.nano
+            )
+            self.transcriber = aai.Transcriber(config=transcriber_config)
+        else:
+            self.transcriber = None
+            
         self.metrics = []
         
     def transcribe_file(self, audio_path: str, progress_callback: Callable[[str, float, str, dict], None] = None) -> str:
         """Simple audio file transcription with detailed progress updates"""
+        if not self.transcriber:
+            error_msg = "No API key configured. Please set your AssemblyAI API key in Settings > API Key."
+            if progress_callback:
+                progress_callback(error_msg, -1, "error")
+            raise Exception(error_msg)
+            
         try:
             # Convert to Path for reliable handling
             audio_path = Path(audio_path)
