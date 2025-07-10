@@ -170,4 +170,22 @@ OUTPUT_DIRECTORY=transcriptions
 
 ## License
 
-MIT License 
+MIT License
+
+## Web Application
+
+In addition to the desktop GUI, a simple Flask-based web interface is available.
+Run it locally with:
+
+```bash
+python -m src.webapp
+```
+
+### Docker
+
+You can build and run the web app in a container:
+
+```bash
+docker build -t audio-transcriber .
+docker run -p 5000:5000 audio-transcriber
+```
