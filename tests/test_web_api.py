@@ -40,7 +40,29 @@ class TestWebAPI:
     def teardown_method(self):
         """Clean up test environment after each test"""
         if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+            # Windows file permission fix - retry cleanup with delay
+            import time
+            for attempt in range(3):
+                try:
+                    shutil.rmtree(self.temp_dir)
+                    break
+                except PermissionError:
+                    if attempt < 2:  # Don't sleep on last attempt
+                        time.sleep(0.1)
+                    else:
+                        # On final attempt, try to change permissions
+                        try:
+                            import stat
+                            for root, dirs, files in os.walk(self.temp_dir):
+                                for file in files:
+                                    try:
+                                        file_path = os.path.join(root, file)
+                                        os.chmod(file_path, stat.S_IWRITE)
+                                    except:
+                                        pass
+                            shutil.rmtree(self.temp_dir)
+                        except:
+                            pass  # Ignore cleanup errors in tests
     
     def test_app_initialization(self):
         """Test Flask app initialization"""

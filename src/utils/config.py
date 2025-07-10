@@ -18,8 +18,20 @@ class Config:
             self.api_key = ""
             
         # Get output directory
-        self.output_dir = os.getenv('OUTPUT_DIRECTORY', 'transcriptions')
-        Path(self.output_dir).mkdir(exist_ok=True)
+        self.output_dir = os.getenv('OUTPUT_DIRECTORY', 'transcripts')
+        
+        # Only create directory if it's a valid path
+        try:
+            # Convert to Path object to handle Windows paths properly
+            output_path = Path(self.output_dir)
+            if output_path.is_absolute():
+                # For absolute paths, ensure parent directories exist
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.mkdir(parents=True, exist_ok=True)
+        except (OSError, ValueError) as e:
+            # If path creation fails, use default directory
+            self.output_dir = 'transcripts'
+            Path(self.output_dir).mkdir(exist_ok=True)
     
     def load_api_key_from_config(self) -> str:
         """Load API key from config file"""
@@ -35,7 +47,8 @@ class Config:
     
     @property
     def supported_formats(self):
-        return ['.amr', '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.wma']
+        """Return supported audio formats as an immutable tuple"""
+        return ('.amr', '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.wma')
     
     def is_supported_format(self, filename):
         return any(filename.lower().endswith(fmt) for fmt in self.supported_formats) 
