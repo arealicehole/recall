@@ -796,7 +796,14 @@
             const formData = new FormData();
             selectedFiles.forEach(file => formData.append('files', file));
             
+            // Add output directory settings
+            const outputDirectory = document.getElementById('output-path').value.trim() || 'transcripts';
+            const sameAsInput = document.getElementById('same-dir-checkbox').checked;
+            formData.append('output_directory', outputDirectory);
+            formData.append('same_as_input', sameAsInput);
+            
             logMessage(`Starting transcription for ${selectedFiles.length} files`, 'INFO');
+            logMessage(`Output directory: ${sameAsInput ? 'Same as input files' : outputDirectory}`, 'INFO');
 
             try {
                 const response = await fetch('/api/upload', {

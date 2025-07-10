@@ -42,9 +42,11 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 class TranscriptionJob:
-    def __init__(self, job_id, files):
+    def __init__(self, job_id, files, output_directory=None, same_as_input=False):
         self.job_id = job_id
         self.files = files
+        self.output_directory = output_directory if output_directory is not None else os.path.join(project_root, 'transcripts')
+        self.same_as_input = same_as_input
         self.status = "pending"
         self.progress = 0
         self.current_file = ""
@@ -113,10 +115,20 @@ def process_transcription_job(job_id):
                     else:
                         raise Exception("Transcription returned empty result")
                 
-                # Save transcript
-                transcript_dir = os.path.join(project_root, 'transcripts')
-                os.makedirs(transcript_dir, exist_ok=True)
-                output_path = os.path.join(transcript_dir, f"{os.path.splitext(job.current_file)[0]}.txt")
+                # Save transcript using job's output settings
+                if job.same_as_input:
+                    # For web uploads, "same as input" means save in uploads folder with the uploaded files
+                    upload_dir = os.path.dirname(file_path)
+                    output_path = os.path.join(upload_dir, f"{os.path.splitext(job.current_file)[0]}_transcription.txt")
+                else:
+                    # Save in the specified output directory
+                    output_path = os.path.join(job.output_directory, f"{os.path.splitext(job.current_file)[0]}_transcription.txt")
+                
+                # Ensure the output directory exists
+                output_dir = os.path.dirname(output_path)
+                if output_dir:  # Only create if there's a directory to create
+                    os.makedirs(output_dir, exist_ok=True)
+                
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(transcript)
                 
@@ -160,7 +172,7 @@ def index():
 def api_status():
     """Check API status"""
     return jsonify({
-        'status': 'running',
+        'status': 'ok',
         'timestamp': datetime.now().isoformat(),
         'api_key_configured': bool(config.api_key)
     })
@@ -179,6 +191,23 @@ def upload_files():
     if not config.api_key:
         return jsonify({'error': 'AssemblyAI API key not configured'}), 400
     
+    # Get output directory and same_as_input setting from form data
+    output_directory = request.form.get('output_directory', 'transcripts').strip()
+    same_as_input = request.form.get('same_as_input', 'false').lower() == 'true'
+    
+    # Validate and create output directory if needed
+    if not same_as_input:
+        # Use absolute path or relative to project root
+        if not os.path.isabs(output_directory):
+            output_directory = os.path.join(project_root, output_directory)
+        try:
+            os.makedirs(output_directory, exist_ok=True)
+        except Exception as e:
+            return jsonify({'error': f'Invalid output directory: {str(e)}'}), 400
+    else:
+        # For same_as_input, we'll save in the uploads directory (determined later)
+        output_directory = None
+    
     # Create job
     job_id = str(uuid.uuid4())
     uploaded_files = []
@@ -196,8 +225,8 @@ def upload_files():
     if not uploaded_files:
         return jsonify({'error': 'No valid audio files uploaded'}), 400
     
-    # Create and start job
-    job = TranscriptionJob(job_id, uploaded_files)
+    # Create and start job with output settings
+    job = TranscriptionJob(job_id, uploaded_files, output_directory, same_as_input)
     jobs[job_id] = job
     
     # Start processing in background
@@ -211,6 +240,7 @@ def upload_files():
         'status': 'started'
     })
 
+@app.route('/api/job/<job_id>')
 @app.route('/api/jobs/<job_id>')
 def get_job_status(job_id):
     """Get job status and results"""
