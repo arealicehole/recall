@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""
+Web API version of Recall
+Better suited for containerization
+"""
+
+import sys
+import os
+import io
+import zipfile
+# Add the project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
+
+from flask import Flask, request, jsonify, render_template, send_file
+import threading
+import time
+from datetime import datetime
+import uuid
+from werkzeug.utils import secure_filename
+import json
+
+from src.core.audio_handler import AudioHandler
+from src.core.transcriber import Transcriber
+from src.utils.config import Config
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+app.config['UPLOAD_FOLDER'] = os.path.join(project_root, 'uploads')
+
+# Initialize components
+config = Config()
+audio_handler = AudioHandler(config)
+transcriber = Transcriber(config)
+
+# In-memory job tracking
+jobs = {}
+
+ALLOWED_EXTENSIONS = {'mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma', 'amr'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+class TranscriptionJob:
+    def __init__(self, job_id, files):
+        self.job_id = job_id
+        self.files = files
+        self.status = "pending"
+        self.progress = 0
+        self.current_file = ""
+        self.results = []
+        self.error = None
+        self.start_time = None
+        self.end_time = None
+        
+    def to_dict(self):
+        return {
+            'job_id': self.job_id,
+            'status': self.status,
+            'progress': self.progress,
+            'current_file': self.current_file,
+            'results': self.results,
+            'error': self.error,
+            'start_time': self.start_time.isoformat() if self.start_time else None,
+            'end_time': self.end_time.isoformat() if self.end_time else None
+        }
+
+def process_transcription_job(job_id):
+    """Process transcription job in background"""
+    job = jobs[job_id]
+    job.status = "processing"
+    job.start_time = datetime.now()
+    
+    try:
+        total_files = len(job.files)
+        
+        for i, file_path in enumerate(job.files):
+            job.current_file = os.path.basename(file_path)
+            job.progress = (i / total_files) * 100
+            
+            try:
+                # Prepare audio file (convert AMR/other formats to WAV if needed)
+                prepared_path = audio_handler.prepare_audio(file_path)
+                if not prepared_path:
+                    raise Exception("Failed to prepare audio file for transcription")
+                
+                # Transcribe the prepared file
+                transcript = transcriber.transcribe_file(prepared_path)
+                
+                # Clean up temporary file if it was created
+                if prepared_path != file_path:
+                    audio_handler.cleanup_temp_file(prepared_path)
+                
+                if not transcript or transcript.strip() == "":
+                    # Check if the audio file might be silent
+                    if os.path.exists(prepared_path if prepared_path else file_path):
+                        # Try to get audio duration for better error message
+                        try:
+                            from pydub import AudioSegment
+                            audio = AudioSegment.from_file(prepared_path if prepared_path else file_path)
+                            duration = len(audio) / 1000  # Convert to seconds
+                            
+                            if duration > 0:
+                                raise Exception(f"Audio file appears to be silent or contain no detectable speech (duration: {duration:.1f}s). Please check that the audio file contains audible speech.")
+                            else:
+                                raise Exception("Audio file has zero duration or is corrupted")
+                        except Exception as audio_error:
+                            # If we can't analyze the audio, just use the original error
+                            if "silent" in str(audio_error) or "speech" in str(audio_error):
+                                raise audio_error
+                            else:
+                                raise Exception("Transcription returned empty result - audio may be silent or corrupted")
+                    else:
+                        raise Exception("Transcription returned empty result")
+                
+                # Save transcript
+                transcript_dir = os.path.join(project_root, 'transcripts')
+                os.makedirs(transcript_dir, exist_ok=True)
+                output_path = os.path.join(transcript_dir, f"{os.path.splitext(job.current_file)[0]}.txt")
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(transcript)
+                
+                job.results.append({
+                    'file': job.current_file,
+                    'status': 'completed',
+                    'transcript_path': output_path,
+                    'transcript': transcript[:500] + '...' if len(transcript) > 500 else transcript
+                })
+                
+            except Exception as e:
+                # Clean up any temp files on error
+                if 'prepared_path' in locals() and prepared_path != file_path:
+                    audio_handler.cleanup_temp_file(prepared_path)
+                    
+                job.results.append({
+                    'file': job.current_file,
+                    'status': 'error',
+                    'error': str(e)
+                })
+        
+        job.status = "completed"
+        job.progress = 100
+        job.end_time = datetime.now()
+        
+    except Exception as e:
+        job.status = "failed"
+        job.error = str(e)
+        job.end_time = datetime.now()
+    
+    finally:
+        # Clean up all temporary files
+        audio_handler.cleanup_all_temp_files()
+
+@app.route('/')
+def index():
+    """Main page with upload form"""
+    return render_template('index.html')
+
+@app.route('/api/status')
+def api_status():
+    """Check API status"""
+    return jsonify({
+        'status': 'running',
+        'timestamp': datetime.now().isoformat(),
+        'api_key_configured': bool(config.api_key)
+    })
+
+@app.route('/api/upload', methods=['POST'])
+def upload_files():
+    """Upload audio files for transcription"""
+    if 'files' not in request.files:
+        return jsonify({'error': 'No files provided'}), 400
+    
+    files = request.files.getlist('files')
+    if not files or all(f.filename == '' for f in files):
+        return jsonify({'error': 'No files selected'}), 400
+    
+    # Check API key
+    if not config.api_key:
+        return jsonify({'error': 'AssemblyAI API key not configured'}), 400
+    
+    # Create job
+    job_id = str(uuid.uuid4())
+    uploaded_files = []
+    
+    # Save uploaded files
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{job_id}_{filename}")
+            file.save(file_path)
+            uploaded_files.append(file_path)
+    
+    if not uploaded_files:
+        return jsonify({'error': 'No valid audio files uploaded'}), 400
+    
+    # Create and start job
+    job = TranscriptionJob(job_id, uploaded_files)
+    jobs[job_id] = job
+    
+    # Start processing in background
+    thread = threading.Thread(target=process_transcription_job, args=(job_id,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'job_id': job_id,
+        'files_count': len(uploaded_files),
+        'status': 'started'
+    })
+
+@app.route('/api/jobs/<job_id>')
+def get_job_status(job_id):
+    """Get job status and results"""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    return jsonify(jobs[job_id].to_dict())
+
+@app.route('/api/jobs')
+def list_jobs():
+    """List all jobs"""
+    return jsonify([job.to_dict() for job in jobs.values()])
+
+@app.route('/api/config', methods=['GET', 'POST'])
+def api_config():
+    """Get or set API configuration"""
+    if request.method == 'GET':
+        return jsonify({
+            'api_key_configured': bool(config.api_key),
+            'output_directory': config.output_dir
+        })
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        if 'api_key' in data:
+            config.api_key = data['api_key']
+            # Save to config file
+            config_path = os.path.expanduser('~/.recall/config.json')
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, 'w') as f:
+                json.dump({'api_key': config.api_key}, f)
+        
+        return jsonify({'success': True})
+
+@app.route('/api/download/<job_id>')
+def download_results(job_id):
+    """Download all transcripts for a job as a zip file"""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    job = jobs[job_id]
+    if job.status != 'completed':
+        return jsonify({'error': 'Job not finished'}), 400
+
+    # Create a zip file in memory
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for result in job.results:
+            if result['status'] == 'completed':
+                try:
+                    # The transcript path is already a full, safe path
+                    if os.path.exists(result['transcript_path']):
+                        zf.write(result['transcript_path'], os.path.basename(result['transcript_path']))
+                except Exception as e:
+                    print(f"Error adding file to zip: {e}")
+
+    memory_file.seek(0)
+    
+    return send_file(memory_file, download_name=f'recall_transcripts_{job_id}.zip', as_attachment=True)
+
+@app.after_request
+def add_header(response):
+    """
+    Add headers to both force latest IE rendering engine or Chrome Frame,
+    and also to cache the rendered page for 10 minutes.
+    """
+    response.headers['X-UA-Compatible'] = 'IE=Edge,chrome=1'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+if __name__ == '__main__':
+    # Ensure upload and transcript directories exist
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(os.path.join(project_root, 'transcripts'), exist_ok=True)
+    
+    app.run(host='0.0.0.0', port=5000) 

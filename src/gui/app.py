@@ -29,7 +29,7 @@ class TranscriberApp(ctk.CTk):
         self.transcriber = Transcriber(self.config)
         
         # Setup GUI
-        self.title("Audio Transcriber")
+        self.title("Recall")
         self.geometry("800x700")  # Made window larger for metrics
         self.setup_ui()
         
@@ -310,7 +310,7 @@ class TranscriberApp(ctk.CTk):
     def show_about_dialog(self):
         """Show about dialog"""
         about_text = (
-            "Audio Transcriber\n\n"
+            "Recall\n\n"
             "A simple audio transcription application using AssemblyAI.\n\n"
             "Features:\n"
             "• Multiple file selection\n"
@@ -323,7 +323,7 @@ class TranscriberApp(ctk.CTk):
     
     def save_api_key_to_config(self, api_key: str):
         """Save API key to a config file"""
-        config_dir = os.path.expanduser("~/.audio_transcriber")
+        config_dir = os.path.expanduser("~/.recall")
         os.makedirs(config_dir, exist_ok=True)
         config_file = os.path.join(config_dir, "config.json")
         
@@ -343,7 +343,7 @@ class TranscriberApp(ctk.CTk):
     
     def load_api_key_from_config(self) -> str:
         """Load API key from config file"""
-        config_dir = os.path.expanduser("~/.audio_transcriber")
+        config_dir = os.path.expanduser("~/.recall")
         config_file = os.path.join(config_dir, "config.json")
         
         try:

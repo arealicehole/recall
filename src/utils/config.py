@@ -23,7 +23,7 @@ class Config:
     
     def load_api_key_from_config(self) -> str:
         """Load API key from config file"""
-        config_dir = os.path.expanduser("~/.audio_transcriber")
+        config_dir = os.path.expanduser("~/.recall")
         config_file = os.path.join(config_dir, "config.json")
         
         try:

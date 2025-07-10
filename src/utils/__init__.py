@@ -1,3 +1,3 @@
 """
-Utility functions package for the Audio Transcriber application
+Utility functions package for the Recall application
 """ 

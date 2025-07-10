@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recall</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000000;
+            color: #e4e4e7;
+            min-height: 100vh;
+            padding: 20px;
+            background-image: radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+                              radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 50%);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5), 
+                        0 0 0 1px rgba(59, 130, 246, 0.1);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+            color: #ffffff;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.05), transparent);
+            pointer-events: none;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header p {
+            opacity: 0.8;
+            font-size: 1.2rem;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .main-content {
+            padding: 40px;
+            background: #0a0a0a;
+        }
+        
+        .upload-section {
+            background: #111111;
+            border: 2px dashed #333333;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.02), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .upload-section:hover {
+            border-color: #3b82f6;
+            background: #151515;
+        }
+        
+        .upload-section:hover::before {
+            opacity: 1;
+        }
+        
+        .upload-section.dragover {
+            border-color: #3b82f6;
+            background: #1a1a1a;
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+        
+        .file-input {
+            /* Keep inputs in the document so programmatic click() is allowed */
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            top: -1000px;
+            left: -1000px;
+            pointer-events: none; /* ignore real mouse clicks */
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+            pointer-events: none;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+        }
+        
+        .upload-btn:hover::before {
+            left: 100%;
+        }
+        
+        .file-list {
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .file-item {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 12px;
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .file-item:hover {
+            background: #1f1f1f;
+            border-color: #3b82f6;
+            transform: translateX(4px);
+        }
+        
+        .progress-section {
+            display: none;
+            margin-top: 30px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 15px 0;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+            width: 0%;
+            border-radius: 12px;
+            transition: width 0.5s ease-in-out;
+        }
+        
+        .config-section {
+            background: #1a1a1a;
+            border: 1px solid #ef4444;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+        
+        .config-input {
+            width: 100%;
+            background: #111111;
+            border: 1px solid #333333;
+            color: #e4e4e7;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 1rem;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #374151, #1f2937);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-grey {
+            background: linear-gradient(135deg, #4b5563, #374151);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            opacity: 0.7;
+        }
+
+        .btn-grey:hover {
+            opacity: 1;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 10px currentColor;
+        }
+        
+        .status-online { 
+            background: #10b981; 
+            color: #10b981;
+        }
+        .status-offline { 
+            background: #ef4444; 
+            color: #ef4444;
+        }
+        .status-warning { 
+            background: #f59e0b; 
+            color: #f59e0b;
+        }
+        
+        .jobs-section {
+            margin-top: 30px;
+            padding: 24px;
+            background: #111111;
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+        }
+        
+        h3, h4 {
+            color: #ffffff;
+            margin-bottom: 16px;
+        }
+        
+        p {
+            color: #a1a1aa;
+            line-height: 1.6;
+        }
+        
+        label {
+            color: #e4e4e7;
+            font-weight: 500;
+        }
+        
+        strong {
+            color: #ffffff;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #60a5fa;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-content { 
+                padding: 20px; 
+            }
+            .header {
+                padding: 30px 20px;
+            }
+            .header h1 { 
+                font-size: 2.5rem; 
+            }
+            .upload-section { 
+                padding: 30px 20px; 
+            }
+            .progress-section > div {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .progress-section > div > div {
+                min-width: unset;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Recall</h1>
+            <p>Upload your audio files and get AI-powered transcriptions with speaker identification</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- API Configuration -->
+            <div id="config-section" class="config-section" style="display: none;">
+                <h3>⚙️ Configuration Required</h3>
+                <p>Please configure your AssemblyAI API key to use the transcription service.</p>
+                <input type="password" id="api-key-input" class="config-input" placeholder="Enter your AssemblyAI API key">
+                <button id="save-api-key-btn" class="btn">Save API Key</button>
+            </div>
+            
+            <!-- Status Indicator -->
+            <div style="margin-bottom: 20px;">
+                <span id="status-indicator" class="status-indicator status-offline"></span>
+                <span id="status-text">Checking status...</span>
+            </div>
+            
+            <!-- File Selection Section -->
+            <div class="upload-section" id="upload-area">
+                <div style="margin-bottom: 20px; text-align: center;">
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button id="select-files-btn" class="btn">
+                            📄 Select File(s)
+                        </button>
+                        <button id="select-directory-btn" class="btn btn-grey">
+                            📂 Select Directory
+                        </button>
+                    </div>
+                </div>
+                
+                <p style="margin: 15px 0; color: #6b7280; text-align: center;">
+                    Drag and drop audio files here, or use the buttons above<br>
+                    Supported formats: MP3, WAV, M4A, OGG, FLAC, AAC, WMA, AMR
+                </p>
+                
+                <input type="file" id="file-input" class="file-input" multiple accept="audio/*">
+                <input type="file" id="dir-input" class="file-input" webkitdirectory multiple>
+                
+                <!-- Output Directory Selection -->
+                <div style="background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left;">
+                    <h4 style="margin-bottom: 15px; color: #ffffff;">📁 Output Directory Settings</h4>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <label style="min-width: 120px; font-weight: bold;">Output Directory:</label>
+                        <input type="text" id="output-path" class="config-input" style="flex: 1; margin: 0;" placeholder="Select output directory..." value="transcripts">
+                        <button id="select-output-dir-btn" class="btn" style="padding: 8px 16px; font-size: 0.9rem;">Browse</button>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="same-dir-checkbox">
+                        <label for="same-dir-checkbox" style="cursor: pointer;">Save transcripts in same directory as input files</label>
+                    </div>
+                </div>
+
+                <!-- Selected Files Display -->
+                <div style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; margin: 20px 0; text-align: left;">
+                    <div style="padding: 15px; border-bottom: 1px solid #2a2a2a; background: #111111; border-radius: 12px 12px 0 0;">
+                        <h4 style="margin: 0; color: #ffffff;">Selected Files: <span id="file-count">0</span></h4>
+                    </div>
+                    <div id="file-list" style="max-height: 200px; overflow-y: auto; padding: 15px;">
+                        <p style="color: #6b7280; margin: 0;">No files selected</p>
+                    </div>
+                </div>
+                
+                <button id="start-btn" class="btn" style="display: none; margin-top: 20px; font-size: 1.2rem; padding: 15px 30px;">
+                    🚀 Start Transcription
+                </button>
+            </div>
+            
+            <!-- Progress Section -->
+            <div id="progress-section" class="progress-section" style="display: none;">
+                <div style="display: flex; gap: 20px;">
+                    <!-- Left side - Progress info -->
+                    <div style="flex: 2;">
+                        <h3>🔄 Processing...</h3>
+                        <div style="background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0;">
+                            <p><strong style="color: #ffffff;">Status:</strong> <span id="status-text-progress">Ready</span></p>
+                            <p><strong style="color: #ffffff;">Current File:</strong> <span id="current-file">Preparing...</span></p>
+                            <p><strong style="color: #ffffff;">Progress Details:</strong> <span id="progress-details">Getting ready to process files...</span></p>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="progress-fill" class="progress-fill"></div>
+                        </div>
+                        <p id="progress-text" style="text-align: center; font-weight: bold; font-size: 1.2rem;">0%</p>
+                    </div>
+                    
+                    <!-- Right side - Performance metrics -->
+                    <div style="flex: 1; min-width: 300px;">
+                        <div style="background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 12px; margin-bottom: 15px; text-align: center;">
+                            <h4 style="margin-bottom: 10px; color: #ffffff;">⏱️ Elapsed Time</h4>
+                            <div id="elapsed-time" style="font-size: 2rem; font-weight: bold; color: #3b82f6;">00:00:00</div>
+                        </div>
+                        
+                        <div style="background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 12px;">
+                            <h4 style="margin-bottom: 15px; color: #ffffff;">📊 Performance Metrics</h4>
+                            <div id="metrics-container" style="font-size: 0.9rem; line-height: 1.6;">
+                                <p>Waiting to start...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Section -->
+            <div id="results-section" class="results-section" style="display: none;">
+                <h3>✅ Results</h3>
+                <div id="results-container"></div>
+                <button id="download-btn" class="btn" style="display: none;">
+                    Download All Transcripts
+                </button>
+                <button id="reset-btn" class="btn btn-secondary" style="margin-left: 10px;">Start New Job</button>
+            </div>
+            
+            <!-- Job History -->
+            <div id="jobs-section" class="jobs-section">
+                <h3>🕰️ Recent Jobs</h3>
+                <div id="jobs-container">
+                    <p>No recent jobs</p>
+                </div>
+            </div>
+
+            <!-- Output Log -->
+            <div style="margin-top: 30px;">
+                <h3>📝 Output Log</h3>
+                <div id="output-log" style="background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; padding: 20px; border-radius: 10px; height: 200px; overflow-y: auto; font-size: 0.9rem; line-height: 1.4;">
+                    <div class="log-entry">[INFO] Recall Web Interface Ready</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global state
+        let selectedFiles = [];
+        let currentJobId = null;
+        let statusCheckInterval = null;
+        let elapsedTimeInterval = null;
+        let startTime = null;
+
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM fully loaded and parsed. Attaching event listeners.");
+            
+            // Test if buttons are visible and clickable
+            setTimeout(function() {
+                console.log('Testing button visibility after 1 second...');
+                const testBtn = document.getElementById('select-files-btn');
+                if (testBtn) {
+                    const rect = testBtn.getBoundingClientRect();
+                    console.log('Button position:', rect);
+                    console.log('Button styles:', window.getComputedStyle(testBtn));
+                }
+            }, 1000);
+
+            // Setup file input event listeners
+            document.getElementById('file-input').addEventListener('change', handleFileSelect);
+            document.getElementById('dir-input').addEventListener('change', handleDirectorySelect);
+            
+            // Add event listeners for buttons
+            const selectFilesBtn = document.getElementById('select-files-btn');
+            const selectDirectoryBtn = document.getElementById('select-directory-btn');
+            const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+            const selectOutputDirBtn = document.getElementById('select-output-dir-btn');
+            const sameDirCheckbox = document.getElementById('same-dir-checkbox');
+            const downloadBtn = document.getElementById('download-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const startBtn = document.getElementById('start-btn');
+            
+            if (selectFilesBtn) {
+                selectFilesBtn.addEventListener('click', function(e) {
+                    console.log('Select files button clicked!', e);
+                    selectFiles(e);
+                });
+                // Test if button is clickable
+                selectFilesBtn.style.border = '2px solid red';
+                console.log('Select files button found and styled');
+            }
+            if (selectDirectoryBtn) {
+                selectDirectoryBtn.addEventListener('click', selectDirectory);
+            }
+            if (saveApiKeyBtn) {
+                saveApiKeyBtn.addEventListener('click', saveApiKey);
+            }
+            if (selectOutputDirBtn) {
+                selectOutputDirBtn.addEventListener('click', selectOutputDirectory);
+            }
+            if (sameDirCheckbox) {
+                sameDirCheckbox.addEventListener('change', toggleSameDirectory);
+            }
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', downloadResults);
+            }
+            if (resetBtn) {
+                resetBtn.addEventListener('click', resetUpload);
+            }
+            if (startBtn) {
+                startBtn.addEventListener('click', startTranscription);
+            }
+
+            // Event delegation for remove file buttons
+            document.getElementById('file-list').addEventListener('click', function(event) {
+                if (event.target.classList.contains('remove-file-btn')) {
+                    const index = parseInt(event.target.dataset.index, 10);
+                    removeFile(index);
+                }
+            });
+
+            // Setup drag and drop
+            const uploadArea = document.getElementById('upload-area');
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('drop', handleDrop);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            
+            // Check API status on load
+            checkApiStatus();
+            loadJobs();
+        });
+        
+        async function checkApiStatus() {
+            console.log("Checking API status...");
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                const indicator = document.getElementById('status-indicator');
+                const text = document.getElementById('status-text');
+                const configSection = document.getElementById('config-section');
+                
+                if (data.api_key_configured) {
+                    indicator.className = 'status-indicator status-online';
+                    text.textContent = 'Ready to process';
+                    configSection.style.display = 'none';
+                    console.log("API status: Online and ready.");
+                } else {
+                    indicator.className = 'status-indicator status-warning';
+                    text.textContent = 'API key required';
+                    configSection.style.display = 'block';
+                    console.log("API status: API key required.");
+                }
+            } catch (error) {
+                console.error("API status check failed:", error);
+                const indicator = document.getElementById('status-indicator');
+                const text = document.getElementById('status-text');
+                indicator.className = 'status-indicator status-offline';
+                text.textContent = 'Service unavailable';
+            }
+        }
+        
+        async function saveApiKey() {
+            console.log("Attempting to save API key...");
+            const apiKey = document.getElementById('api-key-input').value;
+            if (!apiKey) {
+                console.log("Save API key cancelled: no key provided.");
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey })
+                });
+                
+                if (response.ok) {
+                    console.log("API key saved successfully.");
+                    document.getElementById('api-key-input').value = '';
+                    checkApiStatus();
+                } else {
+                    console.error("Failed to save API key, server responded with an error.");
+                    alert('Failed to save API key. Server responded with an error.');
+                }
+            } catch (error) {
+                console.error("Failed to save API key due to a network or script error:", error);
+                alert('Failed to save API key');
+            }
+        }
+        
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            addFiles(files);
+            logMessage(`Selected ${files.length} files`);
+        }
+
+        function handleDirectorySelect(event) {
+            const files = Array.from(event.target.files);
+            const audioFiles = files.filter(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma', 'amr'].includes(ext);
+            });
+            addFiles(audioFiles);
+            logMessage(`Selected ${audioFiles.length} audio files from directory (${files.length} total files)`);
+        }
+        
+        function handleDragOver(event) {
+            event.preventDefault();
+            document.getElementById('upload-area').classList.add('dragover');
+        }
+        
+        function handleDragLeave(event) {
+            document.getElementById('upload-area').classList.remove('dragover');
+        }
+        
+        function handleDrop(event) {
+            event.preventDefault();
+            document.getElementById('upload-area').classList.remove('dragover');
+            const files = Array.from(event.dataTransfer.files);
+            addFiles(files);
+            logMessage(`Dropped ${files.length} files`);
+        }
+
+        function selectFiles() {
+            console.log("selectFiles() function called. Clicking file input.");
+            document.getElementById('file-input').click();
+            logMessage('File selection opened');
+        }
+
+        function selectDirectory() {
+            console.log("selectDirectory() function called. Clicking directory input.");
+            document.getElementById('dir-input').click();
+            logMessage('Directory selection opened');
+        }
+
+        function selectOutputDirectory() {
+            console.log("selectOutputDirectory() function called.");
+            // Since we can't actually browse directories in web, show an input dialog
+            const currentPath = document.getElementById('output-path').value;
+            const newPath = prompt('Enter output directory path:', currentPath);
+            if (newPath && newPath.trim()) {
+                document.getElementById('output-path').value = newPath.trim();
+                logMessage(`Output directory set to: ${newPath.trim()}`);
+            }
+        }
+        
+        function toggleSameDirectory() {
+            console.log("toggleSameDirectory() function called.");
+            const checkbox = document.getElementById('same-dir-checkbox');
+            const outputPath = document.getElementById('output-path');
+            
+            if (checkbox.checked) {
+                outputPath.disabled = true;
+                outputPath.style.opacity = '0.5';
+                logMessage('Enabled: Save transcripts with input files');
+            } else {
+                outputPath.disabled = false;
+                outputPath.style.opacity = '1';
+                logMessage('Disabled: Save transcripts with input files');
+            }
+        }
+        
+        function addFiles(files) {
+            const validFiles = files.filter(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma', 'amr'].includes(ext);
+            });
+            
+            selectedFiles = [...selectedFiles, ...validFiles];
+            updateFileList();
+            
+            if (validFiles.length !== files.length) {
+                const invalidCount = files.length - validFiles.length;
+                logMessage(`Warning: ${invalidCount} files skipped (unsupported format)`);
+            }
+        }
+        
+        function updateFileList() {
+            const container = document.getElementById('file-list');
+            const startBtn = document.getElementById('start-btn');
+            const fileCount = document.getElementById('file-count');
+            
+            fileCount.textContent = selectedFiles.length;
+            
+            if (selectedFiles.length === 0) {
+                container.innerHTML = '<p style="color: #6b7280; margin: 0;">No files selected</p>';
+                startBtn.style.display = 'none';
+                return;
+            }
+            
+            const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+            const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
+            
+            container.innerHTML = `
+                <div style="margin-bottom: 15px; padding: 10px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;">
+                    <strong style="color: #ffffff;">Total: ${selectedFiles.length} files (${totalSizeMB} MB)</strong>
+                </div>
+                ${selectedFiles.map((file, index) => `
+                    <div class="file-item" style="margin: 5px 0; padding: 8px; background: #1a1a1a; border-radius: 6px; border: 1px solid #2a2a2a;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; color: #ffffff;">📄 ${file.name}</div>
+                            <div style="font-size: 0.8rem; color: #6b7280;">${(file.size / 1024 / 1024).toFixed(2)} MB • ${file.type || 'audio'}</div>
+                        </div>
+                        <button data-index="${index}" class="remove-file-btn" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Remove</button>
+                    </div>
+                `).join('')}
+            `;
+            
+            startBtn.style.display = 'block';
+            logMessage(`Updated file list: ${selectedFiles.length} files selected`);
+        }
+
+        function removeFile(index) {
+            console.log(`removeFile() called for index: ${index}`);
+            const removedFile = selectedFiles[index];
+            selectedFiles.splice(index, 1);
+            updateFileList();
+            logMessage(`Removed file: ${removedFile.name}`, 'INFO');
+        }
+
+        function logMessage(message, type = 'INFO') {
+            const log = document.getElementById('output-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span style="color: #888;">[${timestamp}]</span> <span style="color: ${type === 'ERROR' ? '#ff4444' : type === 'SUCCESS' ? '#44ff44' : '#00ff00'};">[${type}]</span> ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        async function startTranscription() {
+            console.log("startTranscription() function called.");
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one audio file');
+                logMessage('Error: No files selected for transcription', 'ERROR');
+                console.log("Transcription start aborted: no files selected.");
+                return;
+            }
+            
+            const formData = new FormData();
+            selectedFiles.forEach(file => formData.append('files', file));
+            
+            logMessage(`Starting transcription for ${selectedFiles.length} files`, 'INFO');
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentJobId = data.job_id;
+                    showProgress();
+                    startStatusCheck();
+                    console.log(`Job started with ID: ${currentJobId}`);
+                    logMessage(`Job started with ID: ${currentJobId}`, 'SUCCESS');
+                } else {
+                    console.error(`Upload failed: ${data.error}`);
+                    logMessage(`Upload failed: ${data.error}`, 'ERROR');
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error("Upload failed with exception:", error);
+                logMessage(`Upload failed: ${error.message}`, 'ERROR');
+                alert('Upload failed: ' + error.message);
+            }
+        }
+        
+        function showProgress() {
+            document.getElementById('progress-section').style.display = 'block';
+            document.getElementById('upload-area').style.display = 'none';
+            document.getElementById('results-section').style.display = 'none';
+            
+            // Start elapsed time tracking
+            startTime = new Date();
+            elapsedTimeInterval = setInterval(updateElapsedTime, 1000);
+            
+            logMessage('Started transcription process', 'INFO');
+        }
+        
+        function updateElapsedTime() {
+            if (!startTime) return;
+            
+            const now = new Date();
+            const elapsed = Math.floor((now - startTime) / 1000);
+            const hours = Math.floor(elapsed / 3600);
+            const minutes = Math.floor((elapsed % 3600) / 60);
+            const seconds = elapsed % 60;
+            
+            const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            document.getElementById('elapsed-time').textContent = timeString;
+        }
+        
+        function updateMetrics(job) {
+            const container = document.getElementById('metrics-container');
+            const filesProcessed = job.results ? job.results.length : 0;
+            const totalFiles = selectedFiles.length;
+            const completedFiles = job.results ? job.results.filter(r => r.status === 'completed').length : 0;
+            const errorFiles = job.results ? job.results.filter(r => r.status === 'error').length : 0;
+            
+            const elapsedSeconds = startTime ? Math.floor((new Date() - startTime) / 1000) : 0;
+            const avgTimePerFile = filesProcessed > 0 ? (elapsedSeconds / filesProcessed).toFixed(1) : 0;
+            const estimatedRemaining = totalFiles > filesProcessed ? Math.ceil((totalFiles - filesProcessed) * avgTimePerFile) : 0;
+            
+            container.innerHTML = `
+                <div style="margin-bottom: 10px;"><strong>📊 Processing Stats:</strong></div>
+                <div>• Files Processed: ${filesProcessed}/${totalFiles}</div>
+                <div>• Completed: ${completedFiles}</div>
+                <div>• Errors: ${errorFiles}</div>
+                <div>• Success Rate: ${filesProcessed > 0 ? ((completedFiles / filesProcessed) * 100).toFixed(1) : 0}%</div>
+                <div style="margin-top: 15px;"><strong>⏱️ Timing:</strong></div>
+                <div>• Avg Time/File: ${avgTimePerFile}s</div>
+                <div>• Est. Remaining: ${estimatedRemaining > 0 ? `${Math.floor(estimatedRemaining / 60)}:${(estimatedRemaining % 60).toString().padStart(2, '0')}` : 'N/A'}</div>
+                <div style="margin-top: 15px;"><strong>🔄 Current Status:</strong></div>
+                <div>• ${job.status.charAt(0).toUpperCase() + job.status.slice(1)}</div>
+            `;
+        }
+        
+        function startStatusCheck() {
+            statusCheckInterval = setInterval(checkJobStatus, 2000);
+        }
+        
+        async function checkJobStatus() {
+            if (!currentJobId) return;
+            
+            try {
+                const response = await fetch(`/api/jobs/${currentJobId}`);
+                const job = await response.json();
+                
+                // Update status displays
+                document.getElementById('status-text-progress').textContent = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+                document.getElementById('current-file').textContent = job.current_file || 'Processing...';
+                document.getElementById('progress-details').textContent = `Processing file ${job.results ? job.results.length + 1 : 1} of ${selectedFiles.length}`;
+                document.getElementById('progress-fill').style.width = job.progress + '%';
+                document.getElementById('progress-text').textContent = Math.round(job.progress) + '%';
+                
+                // Update metrics
+                updateMetrics(job);
+                
+                // Log progress updates
+                if (job.current_file && job.current_file !== window.lastLoggedFile) {
+                    logMessage(`Processing: ${job.current_file}`, 'INFO');
+                    window.lastLoggedFile = job.current_file;
+                }
+                
+                if (job.status === 'completed' || job.status === 'failed') {
+                    clearInterval(statusCheckInterval);
+                    clearInterval(elapsedTimeInterval);
+                    showResults(job);
+                }
+            } catch (error) {
+                console.error('Status check failed:', error);
+                logMessage(`Status check failed: ${error.message}`, 'ERROR');
+            }
+        }
+        
+        function showResults(job) {
+            document.getElementById('progress-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'block';
+            
+            const container = document.getElementById('results-container');
+            const downloadBtn = document.getElementById('download-btn');
+            
+            if (job.status === 'completed') {
+                const completedFiles = job.results.filter(r => r.status === 'completed').length;
+                const errorFiles = job.results.filter(r => r.status === 'error').length;
+                
+                logMessage(`Transcription completed! ${completedFiles} successful, ${errorFiles} errors`, 'SUCCESS');
+                
+                container.innerHTML = `
+                    <div style="background: #0a1f0a; border: 1px solid #22c55e; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                        <h4 style="color: #22c55e; margin-bottom: 10px;">✅ Transcription Complete!</h4>
+                        <div style="display: flex; gap: 30px;">
+                            <div><strong>Total Files:</strong> ${job.results.length}</div>
+                            <div><strong>Successful:</strong> ${completedFiles}</div>
+                            <div><strong>Errors:</strong> ${errorFiles}</div>
+                            <div><strong>Success Rate:</strong> ${((completedFiles / job.results.length) * 100).toFixed(1)}%</div>
+                        </div>
+                    </div>
+                    ${job.results.map(result => `
+                        <div class="result-item ${result.status === 'error' ? 'error' : ''}">
+                            <h4>${result.status === 'completed' ? '✅' : '❌'} ${result.file}</h4>
+                            ${result.status === 'completed' 
+                                ? `<p><strong>Status:</strong> Completed successfully</p>
+                                   <details style="margin-top: 10px;">
+                                       <summary style="cursor: pointer; font-weight: bold; color: #ffffff;">Preview transcript</summary>
+                                       <div style="background: #1a1a1a; border: 1px solid #2a2a2a; padding: 15px; margin-top: 10px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; line-height: 1.4; color: #e4e4e7;">
+                                           ${result.transcript}
+                                       </div>
+                                   </details>`
+                                : `<p><strong>Status:</strong> Failed - ${result.error}</p>`}
+                        </div>
+                    `).join('')}
+                `;
+                
+                downloadBtn.style.display = 'block';
+            } else {
+                logMessage(`Transcription failed: ${job.error}`, 'ERROR');
+                container.innerHTML = `
+                    <div class="result-item error">
+                        <h4>❌ Job Failed</h4>
+                        <p><strong>Error:</strong> ${job.error}</p>
+                        <p><strong>Status:</strong> The transcription process encountered an error and could not complete.</p>
+                    </div>
+                `;
+            }
+            
+            loadJobs(); // Refresh jobs list
+        }
+        
+        function downloadResults() {
+            if (currentJobId) {
+                window.open(`/api/download/${currentJobId}`, '_blank');
+            }
+        }
+        
+        async function loadJobs() {
+            console.log("Loading recent jobs...");
+            try {
+                const response = await fetch('/api/jobs');
+                const jobs = await response.json();
+                
+                const container = document.getElementById('jobs-container');
+                
+                if (jobs.length === 0) {
+                    container.innerHTML = '<p>No recent jobs</p>';
+                    console.log("No recent jobs found.");
+                    return;
+                }
+                
+                container.innerHTML = jobs.slice(-5).reverse().map(job => `
+                    <div class="file-item">
+                        <div>
+                            <strong>Job ${job.job_id.slice(0, 8)}...</strong><br>
+                            <small>Status: ${job.status} | Progress: ${Math.round(job.progress)}%</small>
+                        </div>
+                        ${job.status === 'completed' 
+                            ? `<button onclick="window.open('/api/download/${job.job_id}', '_blank')" class="btn" style="padding: 4px 8px; font-size: 0.9rem;">Download</button>`
+                            : ''}
+                    </div>
+                `).join('');
+                console.log(`Loaded ${jobs.length} jobs.`);
+            } catch (error) {
+                console.error('Failed to load jobs:', error);
+            }
+        }
+        
+        // Reset functionality
+        function resetUpload() {
+            console.log("resetUpload() function called. Resetting UI for new job.");
+            selectedFiles = [];
+            currentJobId = null;
+            startTime = null;
+            window.lastLoggedFile = null;
+            
+            // Clear intervals
+            if (statusCheckInterval) clearInterval(statusCheckInterval);
+            if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+            
+            // Reset UI elements
+            document.getElementById('upload-area').style.display = 'block';
+            document.getElementById('progress-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'none';
+            document.getElementById('elapsed-time').textContent = '00:00:00';
+            document.getElementById('metrics-container').innerHTML = '<p>Waiting to start...</p>';
+            
+            // Reset file inputs
+            document.getElementById('file-input').value = '';
+            document.getElementById('dir-input').value = '';
+            
+            updateFileList();
+            logMessage('Interface reset - ready for new transcription job', 'INFO');
+        }
+    </script>
+</body>
+</html> 

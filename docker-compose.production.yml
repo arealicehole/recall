@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  recall-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    container_name: recall-web-prod
+    environment:
+      - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./transcripts:/app/transcripts
+      - ./uploads:/app/uploads
+      - ./config:/app/config
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - recall-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: recall-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - recall-web
+    restart: unless-stopped
+    networks:
+      - recall-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+
+networks:
+  recall-net:
+    driver: bridge 

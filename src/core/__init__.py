@@ -1,3 +1,3 @@
 """
-Core functionality package for the Audio Transcriber application
+Core functionality package for the Recall application
 """ 

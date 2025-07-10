@@ -1,4 +1,4 @@
-# Audio Transcriber
+# recall
 
 A Python desktop application that uses AssemblyAI's transcription API to transcribe audio files with speaker identification. The application supports various audio formats and provides a modern GUI interface with advanced features.
 
@@ -142,7 +142,7 @@ Robust error handling includes:
 ## Configuration
 
 ### Automatic Configuration
-- **API Key Storage**: Saved to `~/.audio_transcriber/config.json`
+- **API Key Storage**: Saved to `~/.recall/config.json`
 - **Cross-Platform**: Uses standard user config directories
 - **Persistent Settings**: Automatically loads saved configuration
 

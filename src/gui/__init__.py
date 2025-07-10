@@ -1,3 +1,3 @@
 """
-GUI package for the Audio Transcriber application
+GUI package for the Recall application
 """ 

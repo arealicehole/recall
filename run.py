@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run script for the Audio Transcriber application.
+Run script for the Recall application.
 This ensures the application is run from the correct directory
 and that Python can find all the necessary packages.
 """
