@@ -42,12 +42,14 @@ def transcribe_route():
     if not prepared:
         return render_template_string(HTML_FORM, transcript="Failed to process file")
 
-    transcript = transcriber.transcribe_file(prepared)
+    transcript_obj = transcriber.transcribe_file(prepared)
+    transcript_text = transcriber.format_transcript_to_string(transcript_obj)
+
     audio_handler.cleanup_temp_file(prepared)
     if prepared != path and os.path.exists(path):
         os.remove(path)
 
-    return render_template_string(HTML_FORM, transcript=transcript or "Transcription failed")
+    return render_template_string(HTML_FORM, transcript=transcript_text or "Transcription failed")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

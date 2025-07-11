@@ -546,14 +546,19 @@ class TranscriberApp(ctk.CTk):
                     prepared_path = self.audio_handler.prepare_audio(file_path)
                     
                     # Transcribe the prepared file
-                    transcript = self.transcriber.transcribe_file(prepared_path)
+                    transcript_obj = self.transcriber.transcribe_file(prepared_path)
                     
                     # Clean up the temporary file if one was created
                     if prepared_path != file_path:
                         self.audio_handler.cleanup_temp_file(prepared_path)
+
+                    if not transcript_obj:
+                        raise TranscriptionError("Transcription failed and returned no object.")
                     
-                    if not transcript or transcript.strip() == "":
-                        raise SilentAudioError("Transcription returned empty or silent result.")
+                    transcript_text = self.transcriber.format_transcript_to_string(transcript_obj)
+
+                    if not transcript_text or "silent" in transcript_text or "no detectable speech" in transcript_text:
+                        raise SilentAudioError(transcript_text or "Transcription returned empty or silent result.")
                     
                     # Save the transcript
                     output_dir = self.output_path.get()
@@ -561,16 +566,23 @@ class TranscriberApp(ctk.CTk):
                         output_dir = os.path.dirname(file_path)
                     
                     filename = os.path.basename(file_path)
-                    output_filename = f"{os.path.splitext(filename)[0]}_transcription.txt"
+                    base_filename = os.path.splitext(filename)[0]
+                    output_filename = f"{base_filename}_transcription.json"
                     output_filepath = os.path.join(output_dir, output_filename)
                     
                     os.makedirs(output_dir, exist_ok=True)
-                    with open(output_filepath, 'w', encoding='utf-8') as f:
-                        f.write(transcript)
+                    
+                    if hasattr(transcript_obj, 'json_response'):
+                        with open(output_filepath, 'w', encoding='utf-8') as f:
+                            json.dump(transcript_obj.json_response, f, indent=4)
+                    else:
+                        # Fallback for unexpected transcript object structure
+                        with open(output_filepath, 'w', encoding='utf-8') as f:
+                            json.dump({'text': transcript_text}, f, indent=4)
                         
                     self.update_progress(f"✓ Completed {filename}", progress_percent, "processing", extra={'transcript_path': output_filepath})
 
-                except (AudioHandlerError, TranscriptionError) as e:
+                except (AudioHandlerError, TranscriptionError, SilentAudioError) as e:
                     self.update_progress(f"✗ Error on {os.path.basename(file_path)}: {e}", progress_percent, "error")
                 
             if self.processing:

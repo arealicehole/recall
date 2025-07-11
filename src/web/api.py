@@ -73,56 +73,51 @@ def process_transcription_job(job_id):
                     raise AudioHandlerError("Failed to prepare audio file for transcription")
                 
                 # Transcribe the prepared file
-                transcript = transcriber.transcribe_file(prepared_path)
+                transcript_obj = transcriber.transcribe_file(prepared_path)
                 
                 # Clean up temporary file if it was created
                 if prepared_path != file_path:
                     audio_handler.cleanup_temp_file(prepared_path)
+
+                if not transcript_obj:
+                    raise TranscriptionError("Transcription failed and returned no object.")
+
+                transcript_text = transcriber.format_transcript_to_string(transcript_obj)
+
+                if not transcript_text or "silent" in transcript_text or "no detectable speech" in transcript_text:
+                    raise SilentAudioError(transcript_text or "Transcription returned empty or silent result.")
                 
-                if not transcript or transcript.strip() == "":
-                    # Check if the audio file might be silent
-                    if os.path.exists(prepared_path if prepared_path else file_path):
-                        # Try to get audio duration for better error message
-                        try:
-                            from pydub import AudioSegment
-                            audio = AudioSegment.from_file(prepared_path if prepared_path else file_path)
-                            duration = len(audio) / 1000  # Convert to seconds
-                            
-                            if duration > 0:
-                                raise SilentAudioError(f"Audio file appears to be silent or contain no detectable speech (duration: {duration:.1f}s).")
-                            else:
-                                raise TranscriptionError("Audio file has zero duration or is corrupted")
-                        except Exception as audio_error:
-                            # If we can't analyze the audio, just use the original error
-                            if "silent" in str(audio_error) or "speech" in str(audio_error):
-                                raise audio_error
-                            else:
-                                raise TranscriptionError("Transcription returned empty result - audio may be silent or corrupted")
-                    else:
-                        raise TranscriptionError("Transcription returned empty result - file not found post-processing.")
-                
-                # Save transcript using job's output settings
+                # Determine output directory
                 if job.same_as_input:
-                    # For web uploads, "same as input" means save in uploads folder with the uploaded files
-                    upload_dir = os.path.dirname(file_path)
-                    output_path = os.path.join(upload_dir, f"{os.path.splitext(job.current_file)[0]}_transcription.txt")
+                    # For web uploads, "same as input" means save in uploads folder
+                    output_dir = os.path.dirname(file_path)
                 else:
-                    # Save in the specified output directory
-                    output_path = os.path.join(job.output_directory, f"{os.path.splitext(job.current_file)[0]}_transcription.txt")
-                
+                    output_dir = job.output_directory
+
                 # Ensure the output directory exists
-                output_dir = os.path.dirname(output_path)
-                if output_dir:  # Only create if there's a directory to create
+                if output_dir:
                     os.makedirs(output_dir, exist_ok=True)
+                else: # Fallback to default if something goes wrong
+                    output_dir = os.path.join(project_root, 'transcripts')
+                    os.makedirs(output_dir, exist_ok=True)
+
+                base_filename = os.path.splitext(job.current_file)[0]
                 
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(transcript)
-                
+                # Save .json transcript
+                output_path_json = os.path.join(output_dir, f"{base_filename}_transcription.json")
+                if hasattr(transcript_obj, 'json_response'):
+                    with open(output_path_json, 'w', encoding='utf-8') as f:
+                        json.dump(transcript_obj.json_response, f, indent=4)
+                else:
+                    # If for some reason there's no json_response, save the text as a fallback.
+                    with open(output_path_json, 'w', encoding='utf-8') as f:
+                        json.dump({'text': transcript_text}, f, indent=4)
+
                 job.results.append({
                     'file': job.current_file,
                     'status': 'completed',
-                    'transcript_path': output_path,
-                    'transcript': transcript[:500] + '...' if len(transcript) > 500 else transcript
+                    'transcript_path_json': output_path_json,
+                    'transcript_preview': transcript_text[:200] + '...' if len(transcript_text) > 200 else transcript_text
                 })
                 
             except Exception as e:
@@ -237,6 +232,67 @@ def get_job_status(job_id):
     
     return jsonify(jobs[job_id].to_dict())
 
+@app.route('/api/transcript/<job_id>/<filename>')
+def get_transcript(job_id, filename):
+    """Get a specific transcript file."""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+
+    job = jobs[job_id]
+    result = next((r for r in job.results if r['file'] == filename and r['status'] == 'completed'), None)
+
+    if not result:
+        return jsonify({'error': 'Transcript for this file not found or not completed'}), 404
+
+    json_path = result.get('transcript_path_json')
+
+    if json_path and os.path.exists(json_path):
+        return send_file(json_path, as_attachment=True)
+        
+    return jsonify({'error': 'Transcript file not found on disk'}), 404
+
+@app.route('/api/job/<job_id>/<original_filename>/processed', methods=['POST'])
+def receive_processed_transcript(job_id, original_filename):
+    """Endpoint to receive the processed transcript from the AI service."""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+
+    job = jobs[job_id]
+    result = next((r for r in job.results if r['file'] == original_filename and r['status'] == 'completed'), None)
+
+    if not result:
+        return jsonify({'error': 'Original transcript for this file not found or not completed'}), 404
+
+    processed_data = request.json
+    if not processed_data:
+        return jsonify({'error': 'No JSON data provided'}), 400
+
+    json_path = result.get('transcript_path_json')
+    if not json_path:
+        return jsonify({'error': 'Original JSON transcript path not found'}), 404
+
+    # Save the processed data to a new file
+    output_dir = os.path.dirname(json_path)
+    base_filename = os.path.splitext(original_filename)[0]
+    processed_filename = f"{base_filename}_transcription.processed.json"
+    processed_filepath = os.path.join(output_dir, processed_filename)
+
+    try:
+        with open(processed_filepath, 'w', encoding='utf-8') as f:
+            json.dump(processed_data, f, indent=4)
+        
+        # Optionally, update the job result to include the path to the processed file
+        result['processed_transcript_path'] = processed_filepath
+        result['status'] = 'processed'
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Processed transcript saved to {processed_filepath}'
+        }), 200
+    except Exception as e:
+        logging.exception(f"Failed to save processed transcript for job {job_id}")
+        return jsonify({'error': f'Failed to save processed file: {str(e)}'}), 500
+
 @app.route('/api/jobs')
 def list_jobs():
     """List all jobs"""
@@ -265,7 +321,7 @@ def api_config():
 
 @app.route('/api/download/<job_id>')
 def download_results(job_id):
-    """Download all transcripts for a job as a zip file"""
+    """Download all transcripts from a job as a zip file"""
     if job_id not in jobs:
         return jsonify({'error': 'Job not found'}), 404
     
@@ -280,13 +336,13 @@ def download_results(job_id):
             if result['status'] == 'completed':
                 try:
                     # The transcript path is already a full, safe path
-                    if os.path.exists(result['transcript_path']):
-                        zf.write(result['transcript_path'], os.path.basename(result['transcript_path']))
+                    json_path = result.get('transcript_path_json')
+                    if json_path and os.path.exists(json_path):
+                        zf.write(json_path, os.path.basename(json_path))
                 except Exception as e:
                     print(f"Error adding file to zip: {e}")
 
     memory_file.seek(0)
-    
     return send_file(memory_file, download_name=f'recall_transcripts_{job_id}.zip', as_attachment=True)
 
 @app.after_request

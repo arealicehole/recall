@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import time
-from typing import Callable
+from typing import Callable, Union
 from datetime import datetime
 import assemblyai as aai
 import certifi
@@ -62,8 +62,11 @@ class Transcriber:
             
         self.metrics = []
         
-    def transcribe_file(self, audio_path: str, progress_callback: Callable[[str, float, str, dict], None] = None) -> str:
-        """Simple audio file transcription with detailed progress updates"""
+    def transcribe_file(self, audio_path: str, progress_callback: Callable[[str, float, str, dict], None] = None) -> Union[aai.Transcript, None]:
+        """
+        Simple audio file transcription with detailed progress updates.
+        Returns the full transcript object from AssemblyAI.
+        """
         if not self.transcriber:
             error_msg = "No API key configured. Please set your AssemblyAI API key in Settings > API Key."
             print(f"ERROR: {error_msg}")
@@ -123,91 +126,51 @@ class Transcriber:
                     {"metrics": str(metrics)}
                 )
             
-            # Debug: Print transcript information
-            print(f"DEBUG: Transcript has utterances: {hasattr(transcript, 'utterances') and transcript.utterances}")
-            print(f"DEBUG: Transcript has text: {hasattr(transcript, 'text') and transcript.text}")
-            
-            # Additional debugging - inspect the transcript object
-            print(f"DEBUG: Transcript.text value: '{transcript.text}'")
-            if hasattr(transcript, 'utterances'):
-                print(f"DEBUG: Transcript.utterances value: {transcript.utterances}")
-            if hasattr(transcript, 'words'):
-                print(f"DEBUG: Transcript.words: {len(transcript.words) if transcript.words else 0} words")
-            if hasattr(transcript, 'confidence'):
-                print(f"DEBUG: Transcript.confidence: {transcript.confidence}")
-            if hasattr(transcript, 'audio_duration'):
-                print(f"DEBUG: Transcript.audio_duration: {transcript.audio_duration} seconds")
-            
-            # Check if transcript has any content at all
-            transcript_dict = transcript.json_response if hasattr(transcript, 'json_response') else None
-            if transcript_dict:
-                print(f"DEBUG: Full transcript JSON keys: {list(transcript_dict.keys())}")
-            
-            # Build full transcript with speaker labels
-            full_transcript = ""
-            
-            # Check if transcript has utterances (speaker diarization)
-            if hasattr(transcript, 'utterances') and transcript.utterances:
-                print(f"DEBUG: Found {len(transcript.utterances)} utterances")
-                for i, utterance in enumerate(transcript.utterances):
-                    print(f"DEBUG: Utterance {i}: Speaker {utterance.speaker}, Text: {utterance.text[:50]}...")
-                    full_transcript += f"Speaker {utterance.speaker}: {utterance.text}\n"
-            elif hasattr(transcript, 'text') and transcript.text:
-                # Fall back to basic transcript text if no speaker diarization
-                print(f"DEBUG: Using basic transcript text (length: {len(transcript.text)})")
-                full_transcript = transcript.text
-            else:
-                # Check if this is actually a silent audio file
-                if (hasattr(transcript, 'audio_duration') and transcript.audio_duration > 0 and
-                    hasattr(transcript, 'confidence') and transcript.confidence == 0.0 and
-                    hasattr(transcript, 'words') and len(transcript.words) == 0):
-                    
-                    print("DEBUG: Audio file appears to be silent or contain no speech")
-                    error_msg = (
-                        f"Audio file '{audio_path.name}' appears to be silent or contain no detectable speech. "
-                        f"Duration: {transcript.audio_duration} seconds, but no words were transcribed. "
-                        f"Please check that the audio file contains audible speech."
-                    )
-                    if progress_callback:
-                        progress_callback(error_msg, -1, "error", {"metrics": str(metrics)})
-                    return ""
-                else:
-                    print("DEBUG: No text found in transcript response")
-                    full_transcript = ""
-            
-            print(f"DEBUG: Final transcript length: {len(full_transcript)}")
-            
-            return full_transcript
+            # Check for silent audio
+            if (hasattr(transcript, 'audio_duration') and transcript.audio_duration > 0 and
+                hasattr(transcript, 'confidence') and transcript.confidence == 0.0 and
+                hasattr(transcript, 'words') and len(transcript.words) == 0):
+                
+                print("DEBUG: Audio file appears to be silent or contain no speech")
+                # Return the transcript object even for silent audio, let the caller decide what to do
+                return transcript
+
+            return transcript
             
         except Exception as e:
             error_msg = f"Failed to transcribe {audio_path}: {str(e)}"
             print(f"ERROR: {error_msg}")
             if progress_callback:
                 progress_callback(error_msg, -1, "error", {"metrics": str(metrics) if 'metrics' in locals() else ""})
+            return None
+
+    def format_transcript_to_string(self, transcript: aai.Transcript) -> str:
+        """Formats the transcript object into a human-readable string."""
+        if not transcript:
             return ""
-    
-    def save_transcription(self, audio_path: str, transcription: str, same_as_input: bool = False) -> str:
-        """Save transcription to file
-        
-        Args:
-            audio_path: Path to the original audio file
-            transcription: The transcription text to save
-            same_as_input: If True, save in the same directory as the audio file
-        """
-        try:
-            if same_as_input:
-                # Save in the same directory as the audio file
-                audio_dir = Path(audio_path).parent
-                out_path = audio_dir / f"{Path(audio_path).stem}_transcription.txt"
-            else:
-                # Save in the configured output directory
-                out_path = Path(self.config.output_dir) / f"{Path(audio_path).stem}_transcription.txt"
+
+        # Check if this is a silent audio file
+        if (hasattr(transcript, 'audio_duration') and transcript.audio_duration > 0 and
+            hasattr(transcript, 'confidence') and transcript.confidence == 0.0 and
+            hasattr(transcript, 'words') and not transcript.words):
             
-            out_path.write_text(transcription, encoding='utf-8')
-            return str(out_path)
-        except Exception as e:
-            print(f"Failed to save transcription: {e}")
-            return ""
+            error_msg = (
+                f"Audio file appears to be silent or contain no detectable speech. "
+                f"Duration: {transcript.audio_duration} seconds, but no words were transcribed. "
+                f"Please check that the audio file contains audible speech."
+            )
+            return error_msg
+
+        full_transcript = ""
+        if hasattr(transcript, 'utterances') and transcript.utterances:
+            for utterance in transcript.utterances:
+                full_transcript += f"Speaker {utterance.speaker}: {utterance.text}\n"
+        elif hasattr(transcript, 'text') and transcript.text:
+            full_transcript = transcript.text
+        else:
+            return "No text found in transcript."
+            
+        return full_transcript
             
     def get_performance_summary(self) -> str:
         """Get a summary of all transcription performance metrics"""

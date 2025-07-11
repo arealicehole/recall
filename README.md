@@ -4,20 +4,14 @@ A Python desktop application that uses AssemblyAI's transcription API to transcr
 
 ## Features
 
-### 🎯 **Core Features**
-- **Modern GUI Interface**: Built with CustomTkinter for a sleek, modern appearance
-- **Multiple File Selection**: Select single files, multiple files, or entire directories
-- **Speaker Identification**: Automatic speaker labeling in transcriptions
-- **Real-time Progress Tracking**: Live progress updates with performance metrics
-- **Smart Output Management**: Save transcripts alongside source files or in custom directories
-- **Performance Metrics**: Detailed timing and throughput statistics
+- **High-Quality Transcription**: Utilizes AssemblyAI's state-of-the-art speech-to-text models.
+- **Web API**: A robust API for programmatic access and integration. See [API.md](API.md) for full documentation.
+- **GUI Interface**: An intuitive desktop application for ease of use.
+- **Speaker Diarization**: Automatically identifies and labels different speakers in the audio.
+- **Batch Processing**: Transcribe multiple files at once, either by selecting them individually or by processing an entire directory.
+- **Cross-Platform**: Runs on Windows, macOS, and Linux.
 
-### 🔧 **Advanced Features**
-- **API Key Management**: Built-in settings menu for easy API key configuration
-- **Same as Input Directory**: Intelligent handling of mixed source directories
-- **Enhanced File Display**: Organized file list with full paths and counts
-- **Error Recovery**: Robust error handling with per-file error reporting
-- **Cross-Platform**: Works on Windows, macOS, and Linux
+## Getting Started
 
 ## Requirements
 
