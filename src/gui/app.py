@@ -11,6 +11,7 @@ import json
 from src.core.audio_handler import AudioHandler
 from src.core.transcriber import Transcriber
 from src.utils.config import Config
+from src.core.errors import RecallError, APIKeyError, AudioHandlerError, TranscriptionError, SilentAudioError
 
 class TranscriberApp(ctk.CTk):
     def __init__(self):
@@ -187,6 +188,10 @@ class TranscriberApp(ctk.CTk):
         self.log_text = ctk.CTkTextbox(self.main_frame, height=150)
         self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
     
+    def show_error_message(self, title: str, message: str):
+        """Safely show an error message box from any thread."""
+        self.after(0, lambda: messagebox.showerror(title, message))
+
     def setup_menu(self):
         """Create the menu bar"""
         # Create menu bar
@@ -490,102 +495,106 @@ class TranscriberApp(ctk.CTk):
             self.output_path.insert(0, self.config.output_dir)
     
     def start_transcription(self):
-        if not self.current_files:
-            messagebox.showwarning("No Files", "Please select audio files to transcribe.")
+        """Validate inputs and start the transcription process in a background thread."""
+        if self.processing:
+            messagebox.showwarning("In Progress", "A transcription is already in progress.")
             return
             
-        # Update output directory from entry field (if not using same directory)
-        if not self.same_dir_var.get():
-            new_output_dir = self.output_path.get()
-            if new_output_dir and new_output_dir != self.config.output_dir:
-                try:
-                    os.makedirs(new_output_dir, exist_ok=True)
-                    self.config.output_dir = new_output_dir
-                except Exception as e:
-                    messagebox.showerror("Error", f"Failed to create output directory: {str(e)}")
-                    return
-        
-        if self.processing:
+        if not self.current_files:
+            messagebox.showerror("Error", "No files selected for transcription.")
             return
-        
+
+        # Early API key check
+        if not self.config.api_key:
+            self.show_error_message(
+                "API Key Error",
+                "AssemblyAI API key not set. Please set it in Settings > API Key."
+            )
+            return
+            
         self.processing = True
-        self.transcribe_btn.configure(state=tk.DISABLED)
-        self.select_file_btn.configure(state=tk.DISABLED)
-        self.select_dir_btn.configure(state=tk.DISABLED)
-        self.select_output_btn.configure(state=tk.DISABLED)
-        self.output_path.configure(state=tk.DISABLED)
-        
-        # Clear log and metrics
-        self.log_text.delete("0.0", tk.END)
-        self.metrics_text.delete("0.0", tk.END)
-        
-        # Start timing
         self.start_time = time.time()
-        self.update_elapsed_time()
+        self.log_text.delete('1.0', tk.END)
+        self.metrics_text.delete('1.0', tk.END)
         
-        # Start transcription in a separate thread
+        self.update_status("Starting...", "processing")
+        self.update_elapsed_time()
+
+        # Run file processing in a separate thread to keep UI responsive
         thread = threading.Thread(target=self.process_files)
         thread.daemon = True
         thread.start()
-    
+
     def process_files(self):
+        """
+        The core file processing logic that runs in a background thread.
+        Handles audio preparation, transcription, and progress updates.
+        """
         try:
             total_files = len(self.current_files)
             
-            for i, file_path in enumerate(self.current_files, 1):
+            for i, file_path in enumerate(self.current_files):
+                if not self.processing:
+                    self.update_status("Cancelled", "cancelled")
+                    break
+
+                progress_percent = (i / total_files) * 100
+                self.update_progress(f"Processing {os.path.basename(file_path)}...", progress_percent, "processing")
+                
                 try:
-                    # Prepare audio file
+                    # Prepare audio file for transcription
                     prepared_path = self.audio_handler.prepare_audio(file_path)
-                    if not prepared_path:
-                        continue
                     
-                    # Transcribe
-                    transcription = self.transcriber.transcribe_file(
-                        prepared_path,
-                        lambda msg, prog, status, extra=None: self.update_progress(
-                            msg,
-                            (i - 1 + prog / 100) / total_files * 100,
-                            status,
-                            extra
-                        )
-                    )
+                    # Transcribe the prepared file
+                    transcript = self.transcriber.transcribe_file(prepared_path)
                     
-                    # Clean up temporary file
+                    # Clean up the temporary file if one was created
                     if prepared_path != file_path:
                         self.audio_handler.cleanup_temp_file(prepared_path)
                     
-                    if transcription:
-                        # Check if we should save in the same directory as the input file
-                        save_same_as_input = self.same_dir_var.get()
-                        output_path = self.transcriber.save_transcription(file_path, transcription, save_same_as_input)
-                        if output_path:
-                            self.update_progress(
-                                f"Saved transcription to: {output_path}",
-                                100 * i / total_files,
-                                "completed"
-                            )
-                except Exception as e:
-                    # Log error for this file but continue with others
-                    error_msg = f"Failed to process {file_path}: {str(e)}"
-                    self.update_progress(error_msg, -1, "error")
-                    continue
+                    if not transcript or transcript.strip() == "":
+                        raise SilentAudioError("Transcription returned empty or silent result.")
+                    
+                    # Save the transcript
+                    output_dir = self.output_path.get()
+                    if self.same_dir_var.get():
+                        output_dir = os.path.dirname(file_path)
+                    
+                    filename = os.path.basename(file_path)
+                    output_filename = f"{os.path.splitext(filename)[0]}_transcription.txt"
+                    output_filepath = os.path.join(output_dir, output_filename)
+                    
+                    os.makedirs(output_dir, exist_ok=True)
+                    with open(output_filepath, 'w', encoding='utf-8') as f:
+                        f.write(transcript)
+                        
+                    self.update_progress(f"✓ Completed {filename}", progress_percent, "processing", extra={'transcript_path': output_filepath})
+
+                except (AudioHandlerError, TranscriptionError) as e:
+                    self.update_progress(f"✗ Error on {os.path.basename(file_path)}: {e}", progress_percent, "error")
+                
+            if self.processing:
+                self.update_status("Completed", "completed")
             
-            self.update_progress("All transcriptions completed!", 100, "completed")
-            messagebox.showinfo("Success", "All files have been transcribed!")
-            
+        except APIKeyError as e:
+            self.show_error_message("API Key Error", str(e))
+            self.update_status("Failed", "error")
         except Exception as e:
-            error_msg = f"An error occurred: {str(e)}"
-            self.update_progress(error_msg, -1, "error")
-            messagebox.showerror("Error", error_msg)
-            
+            self.show_error_message("An Unexpected Error Occurred", f"An unexpected error occurred: {e}")
+            self.update_status("Failed", "error")
         finally:
-            # Always clean up any remaining temporary files
-            self.audio_handler.cleanup_all_temp_files()
-            
             self.processing = False
-            self.start_time = None
-            self.transcribe_btn.configure(state=tk.NORMAL)
-            self.select_file_btn.configure(state=tk.NORMAL)
-            self.select_dir_btn.configure(state=tk.NORMAL)
-            self.select_output_btn.configure(state=tk.NORMAL)
-            self.output_path.configure(state=tk.NORMAL) 
+            self.after(0, self.reset_ui_state)
+
+    def reset_ui_state(self):
+        """Resets the UI controls to their default, non-processing state."""
+        self.transcribe_btn.configure(text="Start Transcription", state=tk.NORMAL)
+        self.select_file_btn.configure(state=tk.NORMAL)
+        self.select_dir_btn.configure(state=tk.NORMAL)
+        self.select_output_btn.configure(state=tk.NORMAL)
+        self.output_path.configure(state=tk.NORMAL)
+        self.same_dir_checkbox.configure(state=tk.NORMAL)
+
+if __name__ == '__main__':
+    app = TranscriberApp()
+    app.mainloop() 

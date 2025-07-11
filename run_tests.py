@@ -19,28 +19,28 @@ def check_dependencies():
     """Check if required testing dependencies are installed"""
     print("🔍 Checking test dependencies...")
     
-    required_packages = [
-        'pytest',
-        'customtkinter',
-        'flask',
-        'pydub',
-        'python-dotenv',
-        'assemblyai'
-    ]
+    required_packages = {
+        'pytest': 'pytest',
+        'customtkinter': 'customtkinter',
+        'flask': 'flask',
+        'pydub': 'pydub',
+        'dotenv': 'python-dotenv',
+        'assemblyai': 'assemblyai'
+    }
     
     missing_packages = []
     
-    for package in required_packages:
+    for import_name, install_name in required_packages.items():
         try:
-            __import__(package)
-            print(f"   ✅ {package}")
+            __import__(import_name)
+            print(f"   ✅ {install_name}")
         except ImportError:
-            missing_packages.append(package)
-            print(f"   ❌ {package} (missing)")
+            missing_packages.append(install_name)
+            print(f"   ❌ {install_name} (missing)")
     
     if missing_packages:
         print(f"\n⚠️  Missing dependencies: {', '.join(missing_packages)}")
-        print("Install with: pip install -r requirements.txt")
+        print("Install with: pip install -r requirements-dev.txt")
         return False
     
     print("✅ All test dependencies available")
@@ -102,6 +102,11 @@ def run_integration_tests():
     print("🔗 RUNNING INTEGRATION TESTS")
     print("=" * 60)
     
+    debug_dir = Path("debug")
+    if not debug_dir.exists():
+        print("ℹ️  Skipping integration tests: 'debug' directory not found.")
+        return True # Not a failure if the dir is missing
+
     integration_scripts = [
         'debug_transcription.py',
         'check_audio_content.py'
@@ -110,17 +115,17 @@ def run_integration_tests():
     results = []
     
     for script in integration_scripts:
-        script_path = os.path.join(project_root, script)
+        script_path = debug_dir / script
         
-        if not os.path.exists(script_path):
-            print(f"⚠️  Integration test script not found: {script}")
+        if not script_path.exists():
+            print(f"⚠️  Integration test script not found: {script_path}")
             continue
         
         print(f"\n🔍 Running: {script}")
         print("-" * 30)
         
         try:
-            result = subprocess.run([sys.executable, script_path], cwd=project_root)
+            result = subprocess.run([sys.executable, str(script_path)], cwd=project_root)
             success = result.returncode == 0
             results.append(success)
             

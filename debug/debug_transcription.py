@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Debug script for Recall transcription issues
-This script helps identify and troubleshoot common transcription problems.
+Debug script to test the full transcription pipeline on a single file.
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sys
 
-from src.utils.config import Config
+# Add project root to path to allow imports from src
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from src.core.audio_handler import AudioHandler
 from src.core.transcriber import Transcriber
+from src.utils.config import Config
 import assemblyai as aai
 
 def main():

@@ -22,6 +22,8 @@ import json
 
 from src.core.audio_handler import AudioHandler
 from src.core.transcriber import Transcriber
+from src.core.jobs import TranscriptionJob
+from src.core.errors import RecallError, APIKeyError, AudioHandlerError, TranscriptionError, SilentAudioError
 from src.utils.config import Config
 
 app = Flask(__name__)
@@ -38,34 +40,17 @@ jobs = {}
 
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma', 'amr'}
 
+@app.errorhandler(RecallError)
+def handle_recall_error(error):
+    """Handle custom application errors and return a JSON response."""
+    response = jsonify({'error': str(error)})
+    response.status_code = 400
+    if isinstance(error, APIKeyError):
+        response.status_code = 401
+    return response
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-class TranscriptionJob:
-    def __init__(self, job_id, files, output_directory=None, same_as_input=False):
-        self.job_id = job_id
-        self.files = files
-        self.output_directory = output_directory if output_directory is not None else os.path.join(project_root, 'transcripts')
-        self.same_as_input = same_as_input
-        self.status = "pending"
-        self.progress = 0
-        self.current_file = ""
-        self.results = []
-        self.error = None
-        self.start_time = None
-        self.end_time = None
-        
-    def to_dict(self):
-        return {
-            'job_id': self.job_id,
-            'status': self.status,
-            'progress': self.progress,
-            'current_file': self.current_file,
-            'results': self.results,
-            'error': self.error,
-            'start_time': self.start_time.isoformat() if self.start_time else None,
-            'end_time': self.end_time.isoformat() if self.end_time else None
-        }
 
 def process_transcription_job(job_id):
     """Process transcription job in background"""
@@ -84,7 +69,7 @@ def process_transcription_job(job_id):
                 # Prepare audio file (convert AMR/other formats to WAV if needed)
                 prepared_path = audio_handler.prepare_audio(file_path)
                 if not prepared_path:
-                    raise Exception("Failed to prepare audio file for transcription")
+                    raise AudioHandlerError("Failed to prepare audio file for transcription")
                 
                 # Transcribe the prepared file
                 transcript = transcriber.transcribe_file(prepared_path)
@@ -103,17 +88,17 @@ def process_transcription_job(job_id):
                             duration = len(audio) / 1000  # Convert to seconds
                             
                             if duration > 0:
-                                raise Exception(f"Audio file appears to be silent or contain no detectable speech (duration: {duration:.1f}s). Please check that the audio file contains audible speech.")
+                                raise SilentAudioError(f"Audio file appears to be silent or contain no detectable speech (duration: {duration:.1f}s).")
                             else:
-                                raise Exception("Audio file has zero duration or is corrupted")
+                                raise TranscriptionError("Audio file has zero duration or is corrupted")
                         except Exception as audio_error:
                             # If we can't analyze the audio, just use the original error
                             if "silent" in str(audio_error) or "speech" in str(audio_error):
                                 raise audio_error
                             else:
-                                raise Exception("Transcription returned empty result - audio may be silent or corrupted")
+                                raise TranscriptionError("Transcription returned empty result - audio may be silent or corrupted")
                     else:
-                        raise Exception("Transcription returned empty result")
+                        raise TranscriptionError("Transcription returned empty result - file not found post-processing.")
                 
                 # Save transcript using job's output settings
                 if job.same_as_input:
@@ -189,7 +174,7 @@ def upload_files():
     
     # Check API key
     if not config.api_key:
-        return jsonify({'error': 'AssemblyAI API key not configured'}), 400
+        raise APIKeyError("AssemblyAI API key not configured. Please set it via the /api/config endpoint.")
     
     # Get output directory and same_as_input setting from form data
     output_directory = request.form.get('output_directory', 'transcripts').strip()
@@ -203,7 +188,7 @@ def upload_files():
         try:
             os.makedirs(output_directory, exist_ok=True)
         except Exception as e:
-            return jsonify({'error': f'Invalid output directory: {str(e)}'}), 400
+            raise RecallError(f"Invalid output directory: {str(e)}")
     else:
         # For same_as_input, we'll save in the uploads directory (determined later)
         output_directory = None
@@ -223,7 +208,7 @@ def upload_files():
             uploaded_files.append(file_path)
     
     if not uploaded_files:
-        return jsonify({'error': 'No valid audio files uploaded'}), 400
+        raise RecallError("No valid audio files uploaded")
     
     # Create and start job with output settings
     job = TranscriptionJob(job_id, uploaded_files, output_directory, same_as_input)

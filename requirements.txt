@@ -1,23 +1,14 @@
-# Core dependencies for audio transcription
+# Core dependencies
 assemblyai>=0.20.0
 pydub>=0.25.1
 python-dotenv>=1.0.0
 certifi>=2024.2.2
-
-# Web API dependencies
-flask>=2.3.0
-werkzeug>=2.3.0
-
-# Production WSGI server
-gunicorn>=21.2.0
-
-# GUI dependencies (only needed for desktop app)
-customtkinter>=5.2.0
-
-# Utility dependencies
 requests>=2.31.0
 
-# Testing dependencies
-pytest>=7.4.0
-pytest-mock>=3.11.1
-pytest-cov>=4.1.0
+# Web App dependencies
+flask>=2.3.0
+werkzeug>=2.3.0
+gunicorn>=21.2.0
+
+# GUI dependencies
+customtkinter>=5.2.0

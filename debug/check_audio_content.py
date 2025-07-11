@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """
-Script to check if audio files contain speech content
+Audio Content Checker
+This script analyzes audio files in the 'uploads' directory to check for common issues
+like silence, low volume, or corruption before transcription.
 """
 
 import os
 import sys
-from pydub import AudioSegment
-from pydub.silence import detect_nonsilent
+from pathlib import Path
+
+# Add project root to path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+try:
+    from pydub import AudioSegment, silence
+except ImportError:
+    print("Error: pydub or its dependencies are not installed. Please install them.")
+    print("You can install them using: pip install pydub")
+    sys.exit(1)
 
 def analyze_audio_content(file_path):
     """Analyze if audio file contains speech content"""
@@ -49,7 +61,7 @@ def analyze_audio_content(file_path):
         # Detect non-silent chunks
         # min_silence_len: minimum length of silence to be considered a pause (ms)
         # silence_thresh: silence threshold in dBFS
-        nonsilent_ranges = detect_nonsilent(
+        nonsilent_ranges = silence.detect_nonsilent(
             audio,
             min_silence_len=500,  # 500ms of silence
             silence_thresh=audio.dBFS - 16  # 16dB below average
