@@ -83,12 +83,10 @@ def run_web_production(host='0.0.0.0', port=5000, workers=None):
     
     # --- Gunicorn Worker Calculation ---
     if workers is None:
-        try:
-            import multiprocessing
-            cores = multiprocessing.cpu_count()
-            workers = min(max(2, cores), 4) # Between 2-4 workers
-        except ImportError:
-            workers = 2
+        # With an in-memory job store, we must use a single worker process.
+        # Gunicorn with multiple workers creates separate processes, and the
+        # 'jobs' dictionary containing job statuses would not be shared.
+        workers = 1
     logger.info(f"🔧 Using {workers} Gunicorn workers")
     
     # --- Gunicorn Command ---

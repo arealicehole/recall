@@ -892,6 +892,13 @@
                 const response = await fetch(`/api/jobs/${currentJobId}`);
                 const job = await response.json();
                 
+                if (job.error) {
+                    console.error(`Job error: ${job.error}`);
+                    logMessage(`Job error: ${job.error}`, 'ERROR');
+                    clearInterval(statusCheckInterval);
+                    return;
+                }
+                
                 // Update status displays
                 document.getElementById('status-text-progress').textContent = job.status.charAt(0).toUpperCase() + job.status.slice(1);
                 document.getElementById('current-file').textContent = job.current_file || 'Processing...';

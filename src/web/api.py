@@ -19,6 +19,7 @@ from datetime import datetime
 import uuid
 from werkzeug.utils import secure_filename
 import json
+import logging
 
 from src.core.audio_handler import AudioHandler
 from src.core.transcriber import Transcriber
@@ -125,6 +126,8 @@ def process_transcription_job(job_id):
                 })
                 
             except Exception as e:
+                logging.exception(f"Failed to process file {job.current_file} for job {job_id}")
+
                 # Clean up any temp files on error
                 if 'prepared_path' in locals() and prepared_path != file_path:
                     audio_handler.cleanup_temp_file(prepared_path)

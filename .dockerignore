@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# IDEs and editors
+.idea/
+.vscode/
+.cursor/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Local data
+uploads/
+transcripts/
+custom_output_path/
+debug/
+config/
+*.log
+logs/
+
+# OS-specific
+.DS_Store
+Thumbs.db 
