@@ -35,6 +35,7 @@ debug/
 config/
 *.log
 logs/
+.env
 
 # OS-specific
 .DS_Store

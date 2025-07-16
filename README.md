@@ -186,6 +186,14 @@ python -m src.webapp
 You can build and run the web app in a container:
 
 ```bash
+# Build the image
 docker build -t audio-transcriber .
+
+# Run with API key as environment variable
+docker run -p 5000:5000 -e ASSEMBLYAI_API_KEY=your_api_key_here audio-transcriber
+
+# Or configure API key through the web interface after starting
 docker run -p 5000:5000 audio-transcriber
 ```
+
+**Note:** The container will be available at `http://localhost:5000`. If no API key is provided via environment variable, you can configure it through the web interface.
