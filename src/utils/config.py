@@ -8,6 +8,13 @@ class Config:
         # Load environment variables
         load_dotenv()
         
+        # Get transcriber backend (default: whisper for local processing)
+        self.transcriber_backend = os.getenv('TRANSCRIBER_BACKEND', 'whisper').lower()
+        
+        # Get Whisper API URL - now defaults to whisper-on-fedora port
+        # Supports both whisper-on-fedora (8767) and original (8765) servers
+        self.whisper_api_url = os.getenv('WHISPER_API_URL', 'http://127.0.0.1:8767')
+        
         # Get API key from environment first, then from config file
         self.api_key = os.getenv('ASSEMBLYAI_API_KEY')
         if not self.api_key:

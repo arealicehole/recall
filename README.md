@@ -1,5 +1,25 @@
 # recall
 
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+## Project Status
+
+🚀 **Active Development** - Regular updates and improvements
+
+### Recent Updates
+- ✅ Dual backend support (Whisper + AssemblyAI)
+- ✅ Speaker diarization with hybrid GPU/CPU mode
+- ✅ Improved error handling and recovery
+- ✅ Docker support for containerized deployment
+
+### Roadmap
+- 🔄 Streaming support for large files
+- 🔄 Real-time transcription
+- 🔄 Multi-language support expansion
+- 🔄 Cloud deployment options
+
 A Python desktop application that uses AssemblyAI's transcription API to transcribe audio files with speaker identification. The application supports various audio formats and provides a modern GUI interface with advanced features.
 
 ## Features
@@ -21,9 +41,13 @@ A Python desktop application that uses AssemblyAI's transcription API to transcr
 
 ## Requirements
 
-- Python 3.9 or higher
-- AssemblyAI API key (get one free at https://www.assemblyai.com/)
-- FFmpeg (for audio file handling)
+| Component | Minimum | Recommended | Notes |
+|-----------|---------|-------------|-------|
+| Python | 3.9 | 3.11+ | Type hints support required |
+| RAM | 4GB | 8GB+ | For processing large files |
+| GPU | - | NVIDIA with CUDA | For Whisper acceleration |
+| FFmpeg | Required | Latest | Audio processing |
+| OS | Windows 10, macOS 10.15, Linux | Any recent version | Cross-platform |
 
 ## Installation
 
@@ -139,7 +163,36 @@ Robust error handling includes:
 - **File System Problems**: Graceful handling of permissions/access issues
 - **API Errors**: Detailed AssemblyAI error reporting
 
+For detailed troubleshooting, see our [Troubleshooting Guide](TROUBLESHOOTING.md).
+
 ## Configuration
+
+### Whisper-on-Fedora Integration (Local Transcription)
+
+Recall now supports the [whisper-on-fedora](https://github.com/arealicehole/whisper-on-fedora) server for local, GPU-accelerated transcription:
+
+#### Quick Setup
+1. Install and run whisper-on-fedora server on port 8767 (default)
+2. Recall will automatically connect to port 8767
+
+#### Configuration Options
+Set the Whisper API URL via environment variable or `.env` file:
+```env
+# For whisper-on-fedora (default)
+WHISPER_API_URL=http://127.0.0.1:8767
+
+# For original whisper server
+WHISPER_API_URL=http://127.0.0.1:8765
+
+# Select backend (whisper for local, assemblyai for cloud)
+TRANSCRIBER_BACKEND=whisper
+```
+
+#### Testing Connectivity
+```bash
+# Test whisper-on-fedora connection
+python test_whisper_8767.py
+```
 
 ### Automatic Configuration
 - **API Key Storage**: Saved to `~/.recall/config.json`
@@ -151,22 +204,100 @@ You can still use environment variables if preferred:
 ```env
 ASSEMBLYAI_API_KEY=your_api_key_here
 OUTPUT_DIRECTORY=transcriptions
+WHISPER_API_URL=http://127.0.0.1:8767
+TRANSCRIBER_BACKEND=whisper
 ```
 
 ## Technical Details
 
-### Architecture
+### Architecture Overview
+
+Recall uses a layered architecture with pluggable backends:
+
+```
+┌─────────────────────────────────────┐
+│         GUI (CustomTkinter)         │
+│         Web API (Flask)             │
+├─────────────────────────────────────┤
+│        Core Business Logic          │
+│     (Transcriber Factory Pattern)   │
+├─────────────────────────────────────┤
+│     Transcription Backends          │
+│  ┌──────────┐    ┌──────────────┐  │
+│  │ Whisper  │    │ AssemblyAI   │  │
+│  │  (Local) │    │   (Cloud)    │  │
+│  └──────────┘    └──────────────┘  │
+└─────────────────────────────────────┘
+```
+
+The factory pattern allows seamless switching between backends via configuration.
+
+### Core Components
 - **GUI Framework**: CustomTkinter for modern appearance
 - **Transcription Engine**: AssemblyAI Nano model with speaker labels
 - **Audio Processing**: PyDub with FFmpeg backend
 - **Threading**: Non-blocking UI with background processing
 - **Configuration**: JSON-based user settings
 
-### Performance
+### Performance Benchmarks
+
+| Backend | Device | Speed | Diarization | Cost |
+|---------|--------|-------|-------------|------|
+| Whisper (Local) | RTX 5060 Ti | 54x real-time | CPU (0.6x) | Free |
+| Whisper (Local) | CPU only | 0.5x real-time | 0.3x | Free |
+| AssemblyAI | Cloud | 2-5x real-time | Included | $0.00025/sec |
+
+*Benchmarks on 60-second audio file*
+
+### Performance Features
 - **Concurrent Processing**: Efficient handling of multiple files
 - **Memory Management**: Automatic cleanup of temporary files
 - **Progress Tracking**: Real-time updates without UI blocking
 - **Error Recovery**: Continue processing remaining files on individual failures
+
+## Development
+
+For developers looking to contribute or extend Recall:
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get running in 5 minutes
+- **[ONBOARDING.md](ONBOARDING.md)** - Comprehensive developer guide
+- **[TESTING.md](TESTING.md)** - Test suite documentation
+- **[TRANSCRIPTION_BACKENDS.md](TRANSCRIPTION_BACKENDS.md)** - Backend implementation details
+
+### Quick Development Setup
+```bash
+# Clone and setup
+git clone <repo>
+cd recall
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Run tests
+pytest
+
+# Start developing
+python run.py
+```
+
+## Contributing
+
+We welcome contributions! Please see our [Developer Guide](ONBOARDING.md) for details.
+
+### Quick Contribution Guide
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Run the test suite (`pytest`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Code Style
+- Follow PEP 8
+- Use type hints
+- Write docstrings for public functions
+- Maintain 80% test coverage
 
 ## License
 
@@ -197,3 +328,11 @@ docker run -p 5000:5000 audio-transcriber
 ```
 
 **Note:** The container will be available at `http://localhost:5000`. If no API key is provided via environment variable, you can configure it through the web interface.
+
+## Links
+
+- [Documentation](docs/)
+- [API Reference](docs/api-reference.md)
+- [Issue Tracker](https://github.com/username/recall/issues)
+- [Discussions](https://github.com/username/recall/discussions)
+- [Changelog](CHANGELOG.md)
