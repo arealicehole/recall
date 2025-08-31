@@ -139,4 +139,27 @@ config/
 *.amr
 
 # Temporary/debug scripts
-debug/ 
+debug/
+
+# Test outputs and backup files (added during cleanup)
+test_result_*.txt
+*_test_result.json
+*.bak
+*_old.py
+*_backup.py
+*_improved.py
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local environment files
+.env.local
+.env.*.local
+
+# IDE specific (expanded)
+.cursor/
+
+# Test audio files in root
+test_*.wav
+test_*.mp3 
