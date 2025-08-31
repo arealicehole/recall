@@ -1,0 +1,1 @@
+# Manager modules for the Recall GUI application
