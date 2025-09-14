@@ -67,9 +67,8 @@ class ProgressTracker:
             self.app.metrics_text.delete("0.0", "1.0")
             self.app.metrics_text.insert("1.0", extra["metrics"])
             if status == "completed":
-                performance_summary = getattr(self.app.transcriber, 'get_performance_summary', lambda: "")()
-                if performance_summary:
-                    self.app.metrics_text.insert("end", "\n\n" + performance_summary)
+                # Performance summary can be included in the metrics
+                pass
         
         self.app.log_text.insert("end", log_message + "\n")
         self.app.log_text.see("end")

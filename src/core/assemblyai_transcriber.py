@@ -21,19 +21,19 @@ class AssemblyAITranscriber(BaseTranscriber):
         os.environ['CURL_CA_BUNDLE'] = certifi.where()
         
         # Debug: Print API key status
-        if config.api_key:
-            print(f"DEBUG: AssemblyAI API key configured (length: {len(config.api_key)})")
-            print(f"DEBUG: API key starts with: {config.api_key[:10]}...")
+        if config.assemblyai_api_key:
+            print(f"DEBUG: AssemblyAI API key configured (length: {len(config.assemblyai_api_key)})")
+            print(f"DEBUG: API key starts with: {config.assemblyai_api_key[:10]}...")
         else:
             print("DEBUG: No AssemblyAI API key configured!")
         
         # Initialize AssemblyAI client with API key (if available)
-        if config.api_key:
-            aai.settings.api_key = config.api_key
+        if config.assemblyai_api_key:
+            aai.settings.api_key = config.assemblyai_api_key
             
             # Create transcriber with nano model and speaker labels
             transcriber_config = aai.TranscriptionConfig(
-                speaker_labels=True,
+                speaker_labels=getattr(config, 'enable_diarization', True),
                 speech_model=aai.SpeechModel.nano
             )
             self.transcriber = aai.Transcriber(config=transcriber_config)

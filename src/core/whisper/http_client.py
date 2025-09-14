@@ -30,7 +30,7 @@ class WhisperHTTPClient:
         except Exception as e:
             print(f"WARNING: Cannot connect to Whisper API at {self.api_url}: {e}")
             print("Make sure the Whisper API service is running:")
-            print("  For whisper-on-fedora (port 8767): Check https://github.com/arealicehole/whisper-on-fedora")
+            print("  For whisper-on-fedora (port 8771): Check https://github.com/arealicehole/whisper-on-fedora")
             print("  For default service (port 8765): systemctl --user status whisper-api.service")
             return {}, False
     
@@ -81,7 +81,7 @@ class WhisperHTTPClient:
             error_msg = f"Cannot connect to Whisper API at {self.api_url}: {e.reason}"
             print(f"ERROR: {error_msg}")
             print("Make sure the Whisper API service is running:")
-            print("  For whisper-on-fedora (port 8767): Check https://github.com/arealicehole/whisper-on-fedora")
+            print("  For whisper-on-fedora (port 8771): Check https://github.com/arealicehole/whisper-on-fedora")
             print("  For default service (port 8765): systemctl --user start whisper-api.service")
             raise Exception(error_msg)
     

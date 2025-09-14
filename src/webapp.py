@@ -1,14 +1,12 @@
 import os
 from flask import Flask, request, render_template_string
 
-from src.utils.config import Config
-from src.core.audio_handler import AudioHandler
-from src.core.transcriber import Transcriber
+from src.services import ServiceContainer
 
 app = Flask(__name__)
-config = Config()
-audio_handler = AudioHandler(config)
-transcriber = Transcriber(config)
+services = ServiceContainer()
+config = services.get_config()
+audio_handler = services.get_audio_handler()
 
 HTML_FORM = """
 <!doctype html>
@@ -42,7 +40,8 @@ def transcribe_route():
     if not prepared:
         return render_template_string(HTML_FORM, transcript="Failed to process file")
 
-    transcript = transcriber.transcribe_file(prepared)
+    transcription_service = services.get_transcription_factory().get_available_service()
+    transcript = transcription_service.transcribe_file(prepared)
     audio_handler.cleanup_temp_file(prepared)
     if prepared != path and os.path.exists(path):
         os.remove(path)

@@ -15,8 +15,18 @@ class AppConfig(BaseSettings):
     )
     
     whisper_api_url: str = Field(
-        default='http://127.0.0.1:8767',
+        default='http://127.0.0.1:8771',
         description="Whisper API endpoint URL"
+    )
+    
+    whisper_model: Literal['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3'] = Field(
+        default='tiny',
+        description="Whisper model size to use"
+    )
+    
+    enable_diarization: bool = Field(
+        default=True,
+        description="Enable speaker diarization (speaker identification)"
     )
     
     # API Keys
@@ -67,3 +77,13 @@ class AppConfig(BaseSettings):
     def is_supported_format(self, filename: str) -> bool:
         """Check if file format is supported."""
         return any(filename.lower().endswith(fmt) for fmt in self.supported_formats)
+    
+    @property
+    def api_key(self) -> Optional[str]:
+        """Backward compatibility property for assemblyai_api_key."""
+        return self.assemblyai_api_key
+    
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        """Backward compatibility setter for assemblyai_api_key."""
+        self.assemblyai_api_key = value

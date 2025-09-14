@@ -39,6 +39,7 @@ class TranscriptionRequest(BaseModel):
     enable_diarization: bool = Field(True, description="Whether to enable speaker diarization")
     language: str = Field("en", description="Language code for transcription")
     format: str = Field("json", description="Response format (json/text)")
+    model: str = Field("tiny", description="Whisper model to use (tiny, base, small, medium, large)")
     
     class Config:
         extra = "forbid"

@@ -70,7 +70,7 @@ class UIBuilder:
             placeholder_text="Select output directory..."
         )
         self.app.output_path.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        self.app.output_path.insert(0, self.app.config.output_dir)
+        self.app.output_path.insert(0, str(self.app.config.output_directory))
         
         self.app.select_output_btn = ctk.CTkButton(
             self.app.output_frame,
@@ -89,6 +89,105 @@ class UIBuilder:
             command=self.app.toggle_same_directory
         )
         self.app.same_dir_checkbox.pack(side=tk.RIGHT, padx=5)
+
+    
+    def setup_backend_controls(self) -> None:
+        """Set up transcription backend selection controls."""
+        # Backend selection frame
+        self.app.backend_frame = ctk.CTkFrame(self.app.left_frame)
+        self.app.backend_frame.pack(fill=tk.X, pady=5)
+        
+        self.app.backend_label = ctk.CTkLabel(
+            self.app.backend_frame,
+            text="Transcription Backend:",
+            font=("Arial", 12, "bold")
+        )
+        self.app.backend_label.pack(side=tk.LEFT, padx=5)
+        
+        # Backend switch (Local Whisper vs Cloud AssemblyAI)
+        self.app.backend_var = tk.StringVar(value="whisper")
+        
+        self.app.backend_switch = ctk.CTkSegmentedButton(
+            self.app.backend_frame,
+            values=["whisper", "assemblyai"],
+            variable=self.app.backend_var,
+            command=self.app.on_backend_changed
+        )
+        self.app.backend_switch.pack(side=tk.LEFT, padx=10)
+        
+        # Status indicators
+        self.app.backend_status = ctk.CTkLabel(
+            self.app.backend_frame,
+            text="✓ Local Whisper (Free)",
+            font=("Arial", 10),
+            text_color="green"
+        )
+        self.app.backend_status.pack(side=tk.LEFT, padx=10)
+        
+        # API key warning (initially hidden)
+        self.app.api_key_warning = ctk.CTkLabel(
+            self.app.backend_frame,
+            text="⚠️ API key required",
+            font=("Arial", 10),
+            text_color="orange"
+        )
+        # Don't pack initially - will show when needed
+        
+        # Whisper Model Selection Frame (only shown for Whisper backend)
+        self.app.model_frame = ctk.CTkFrame(self.app.left_frame)
+        self.app.model_frame.pack(fill=tk.X, pady=5)
+        
+        self.app.model_label = ctk.CTkLabel(
+            self.app.model_frame,
+            text="Whisper Model:",
+            font=("Arial", 12, "bold")
+        )
+        self.app.model_label.pack(side=tk.LEFT, padx=5)
+        
+        # Model selection dropdown
+        self.app.model_var = tk.StringVar(value=self.app.config.whisper_model)
+        self.app.model_dropdown = ctk.CTkOptionMenu(
+            self.app.model_frame,
+            values=["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
+            variable=self.app.model_var,
+            command=self.app.on_model_changed,
+            width=120
+        )
+        self.app.model_dropdown.pack(side=tk.LEFT, padx=10)
+        
+        # Model info label
+        self.app.model_info = ctk.CTkLabel(
+            self.app.model_frame,
+            text=self._get_model_info(self.app.config.whisper_model),
+            font=("Arial", 10),
+            text_color="gray"
+        )
+        self.app.model_info.pack(side=tk.LEFT, padx=10)
+        
+        # Diarization (Speaker ID) toggle
+        self.app.diarization_var = tk.BooleanVar(value=self.app.config.enable_diarization)
+        self.app.diarization_checkbox = ctk.CTkCheckBox(
+            self.app.model_frame,
+            text="Speaker ID",
+            variable=self.app.diarization_var,
+            command=self.app.on_diarization_changed,
+            font=("Arial", 11, "bold")
+        )
+        self.app.diarization_checkbox.pack(side=tk.RIGHT, padx=10)
+    
+    def _get_model_info(self, model: str) -> str:
+        """Get information about the selected model."""
+        model_sizes = {
+            "tiny": "39M params, fastest, lowest accuracy",
+            "base": "74M params, fast, good accuracy",
+            "small": "244M params, balanced",
+            "medium": "769M params, slower, better accuracy",
+            "large": "1.5B params, slow, best accuracy",
+            "large-v2": "1.5B params, improved large",
+            "large-v3": "1.5B params, latest version"
+        }
+        return model_sizes.get(model, "Unknown model")
+        # Don't pack initially - will show when needed
     
     def setup_files_list(self) -> None:
         """Set up the files list display."""
@@ -199,7 +298,20 @@ class UIBuilder:
         self.setup_main_layout()
         self.setup_file_controls()
         self.setup_output_controls()
+        self.setup_backend_controls()
         self.setup_files_list()
         self.setup_status_controls()
         self.setup_metrics_panel()
         self.setup_log_panel()
+        
+        # Initialize UI state
+        self._initialize_ui_state()
+    
+    def _initialize_ui_state(self) -> None:
+        """Initialize the UI state after all components are created."""
+        # Set the initial backend selection
+        current_backend = self.app.config.transcriber_backend
+        self.app.backend_var.set(current_backend)
+        
+        # Update the backend status display
+        self.app.update_backend_status()

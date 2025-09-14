@@ -270,6 +270,22 @@
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
         }
         
+        .backend-btn {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .backend-btn:not(.active) {
+            background: linear-gradient(135deg, #374151, #1f2937);
+            opacity: 0.7;
+        }
+        
+        .backend-btn.active {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            transform: translateY(-2px);
+        }
+        
         .status-indicator {
             display: inline-block;
             width: 12px;
@@ -382,6 +398,58 @@
             <div style="margin-bottom: 20px;">
                 <span id="status-indicator" class="status-indicator status-offline"></span>
                 <span id="status-text">Checking status...</span>
+            </div>
+            
+            <!-- Backend Selection -->
+            <div id="backend-section" style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 16px; padding: 24px; margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px;">🔄 Transcription Backend</h3>
+                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <label style="font-weight: bold; min-width: 120px;">Backend:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="backend-whisper" class="btn backend-btn" data-backend="whisper" style="padding: 8px 16px;">
+                            🖥️ Local Whisper
+                        </button>
+                        <button id="backend-assemblyai" class="btn backend-btn" data-backend="assemblyai" style="padding: 8px 16px;">
+                            ☁️ AssemblyAI Cloud
+                        </button>
+                    </div>
+                    <div id="backend-status" style="color: #10b981; font-weight: bold;">
+                        ✓ Local Whisper (Free)
+                    </div>
+                </div>
+                <div id="backend-details" style="margin-top: 15px; padding: 10px; background: #111111; border-radius: 8px; font-size: 0.9rem;">
+                    <p>Loading backend information...</p>
+                </div>
+                
+                <!-- Whisper Model Selection (shown only for Whisper backend) -->
+                <div id="model-selection" style="margin-top: 15px; display: none;">
+                    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                        <label style="font-weight: bold; min-width: 120px;">Whisper Model:</label>
+                        <select id="model-select" style="background: #1a1a1a; color: #e4e4e7; border: 1px solid #3b82f6; padding: 8px 12px; border-radius: 8px; font-size: 1rem; cursor: pointer;">
+                            <option value="tiny">Tiny (39M, fastest)</option>
+                            <option value="base">Base (74M, fast)</option>
+                            <option value="small">Small (244M, balanced)</option>
+                            <option value="medium">Medium (769M, accurate)</option>
+                            <option value="large">Large (1.5B, best)</option>
+                            <option value="large-v2">Large-v2 (1.5B, improved)</option>
+                            <option value="large-v3">Large-v3 (1.5B, latest)</option>
+                        </select>
+                        <div id="model-info" style="color: #6b7280; font-size: 0.9rem;">
+                            <!-- Model info will be displayed here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Diarization Toggle -->
+                    <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="diarization-toggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+                        <label for="diarization-toggle" style="cursor: pointer; font-weight: bold;">
+                            Enable Speaker Identification (Diarization)
+                        </label>
+                        <span id="diarization-status" style="color: #10b981; font-size: 0.9rem;">
+                            ✓ Enabled
+                        </span>
+                    </div>
+                </div>
             </div>
             
             <!-- File Selection Section -->
@@ -580,11 +648,249 @@
             uploadArea.addEventListener('drop', handleDrop);
             uploadArea.addEventListener('dragleave', handleDragLeave);
             
-            // Check API status on load
+            // Backend switching event listeners
+            document.querySelectorAll('.backend-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const backend = this.dataset.backend;
+                    switchBackend(backend);
+                });
+            });
+            
+            // Model selection event listener
+            const modelSelect = document.getElementById('model-select');
+            if (modelSelect) {
+                modelSelect.addEventListener('change', function() {
+                    const model = this.value;
+                    switchModel(model);
+                });
+            }
+            
+            // Diarization toggle event listener
+            const diarizationToggle = document.getElementById('diarization-toggle');
+            if (diarizationToggle) {
+                diarizationToggle.addEventListener('change', function() {
+                    toggleDiarization(this.checked);
+                });
+            }
+            
+            // Check API status and load backend info on load
             checkApiStatus();
+            loadBackendInfo();
             loadJobs();
         });
         
+        async function loadBackendInfo() {
+            console.log("Loading backend information...");
+            try {
+                const response = await fetch('/api/backend');
+                const data = await response.json();
+                
+                console.log("Backend info:", data);
+                updateBackendUI(data);
+                
+            } catch (error) {
+                console.error("Failed to load backend info:", error);
+                document.getElementById('backend-details').innerHTML = '<p style="color: #ef4444;">Failed to load backend information</p>';
+            }
+        }
+        
+        async function switchModel(model) {
+            console.log(`Switching to model: ${model}`);
+            
+            try {
+                const response = await fetch('/api/backend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: model })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log(`Successfully switched to ${model} model`);
+                    logMessage(`Switched to ${model} model`, 'SUCCESS');
+                    updateModelInfo(model);
+                } else {
+                    console.error(`Failed to switch model: ${data.error}`);
+                    logMessage(`Failed to switch model: ${data.error}`, 'ERROR');
+                    alert('Failed to switch model: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Model switch failed:', error);
+                logMessage(`Model switch failed: ${error.message}`, 'ERROR');
+            }
+        }
+        
+        async function toggleDiarization(enabled) {
+            console.log(`Toggling diarization: ${enabled}`);
+            
+            try {
+                const response = await fetch('/api/backend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable_diarization: enabled })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log(`Diarization ${enabled ? 'enabled' : 'disabled'}`);
+                    logMessage(`Speaker identification ${enabled ? 'enabled' : 'disabled'}`, 'SUCCESS');
+                    
+                    // Update status display
+                    const statusSpan = document.getElementById('diarization-status');
+                    if (statusSpan) {
+                        statusSpan.innerHTML = enabled ? '✓ Enabled' : '✗ Disabled';
+                        statusSpan.style.color = enabled ? '#10b981' : '#ef4444';
+                    }
+                } else {
+                    console.error(`Failed to toggle diarization: ${data.error}`);
+                    logMessage(`Failed to toggle diarization: ${data.error}`, 'ERROR');
+                    // Revert checkbox
+                    document.getElementById('diarization-toggle').checked = !enabled;
+                }
+            } catch (error) {
+                console.error('Diarization toggle failed:', error);
+                logMessage(`Diarization toggle failed: ${error.message}`, 'ERROR');
+                // Revert checkbox
+                document.getElementById('diarization-toggle').checked = !enabled;
+            }
+        }
+        
+        function updateModelInfo(model) {
+            const modelInfo = {
+                'tiny': 'Fastest, lowest accuracy (39M params)',
+                'base': 'Fast, good accuracy (74M params)',
+                'small': 'Balanced speed/accuracy (244M params)',
+                'medium': 'Slower, better accuracy (769M params)',
+                'large': 'Slow, best accuracy (1.5B params)',
+                'large-v2': 'Improved large model (1.5B params)',
+                'large-v3': 'Latest version (1.5B params)'
+            };
+            
+            const infoDiv = document.getElementById('model-info');
+            if (infoDiv) {
+                infoDiv.innerHTML = modelInfo[model] || 'Unknown model';
+            }
+        }
+        
+        function updateBackendUI(backendData) {
+            const currentBackend = backendData.current_backend;
+            const currentModel = backendData.whisper_model || 'tiny';
+            const diarizationEnabled = backendData.enable_diarization !== false; // Default true
+            
+            // Show/hide model selection based on backend
+            const modelSelection = document.getElementById('model-selection');
+            const modelSelect = document.getElementById('model-select');
+            
+            if (currentBackend === 'whisper') {
+                modelSelection.style.display = 'block';
+                if (modelSelect) {
+                    modelSelect.value = currentModel;
+                    updateModelInfo(currentModel);
+                }
+                
+                // Set diarization checkbox
+                const diarizationToggle = document.getElementById('diarization-toggle');
+                if (diarizationToggle) {
+                    diarizationToggle.checked = diarizationEnabled;
+                }
+                
+                // Update diarization status
+                const statusSpan = document.getElementById('diarization-status');
+                if (statusSpan) {
+                    statusSpan.innerHTML = diarizationEnabled ? '✓ Enabled' : '✗ Disabled';
+                    statusSpan.style.color = diarizationEnabled ? '#10b981' : '#ef4444';
+                }
+            } else {
+                modelSelection.style.display = 'none';
+            }
+            
+            // Update button states
+            document.querySelectorAll('.backend-btn').forEach(btn => {
+                const backend = btn.dataset.backend;
+                if (backend === currentBackend) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+                
+                // Update button availability
+                const backendInfo = backendData.available_backends.find(b => b.id === backend);
+                if (backendInfo && !backendInfo.available) {
+                    btn.style.opacity = '0.5';
+                    btn.disabled = true;
+                } else {
+                    btn.style.opacity = '1';
+                    btn.disabled = false;
+                }
+            });
+            
+            // Update status display
+            const currentBackendInfo = backendData.available_backends.find(b => b.id === currentBackend);
+            const statusDiv = document.getElementById('backend-status');
+            const detailsDiv = document.getElementById('backend-details');
+            
+            if (currentBackendInfo) {
+                if (currentBackendInfo.available) {
+                    statusDiv.innerHTML = `✓ ${currentBackendInfo.name}`;
+                    statusDiv.style.color = '#10b981';
+                } else {
+                    statusDiv.innerHTML = `✗ ${currentBackendInfo.name} (Not Available)`;
+                    statusDiv.style.color = '#ef4444';
+                }
+                
+                // Show backend details
+                detailsDiv.innerHTML = `
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                        <div><strong>Current:</strong> ${currentBackendInfo.name}</div>
+                        <div><strong>Status:</strong> ${currentBackendInfo.available ? 'Available' : 'Unavailable'}</div>
+                        <div><strong>Speaker ID:</strong> ${currentBackendInfo.supports_diarization ? 'Yes' : 'No'}</div>
+                        ${currentBackendInfo.error ? `<div style="color: #ef4444;"><strong>Error:</strong> ${currentBackendInfo.error}</div>` : ''}
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <div><strong>Available Backends:</strong></div>
+                        ${backendData.available_backends.map(b => 
+                            `<div style="margin-left: 15px; color: ${b.available ? '#10b981' : '#ef4444'};">
+                                ${b.available ? '✓' : '✗'} ${b.name} ${b.id === currentBackend ? '(Current)' : ''}
+                            </div>`
+                        ).join('')}
+                    </div>
+                `;
+            }
+        }
+        
+        async function switchBackend(backend) {
+            console.log(`Switching to backend: ${backend}`);
+            
+            try {
+                const response = await fetch('/api/backend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ backend: backend })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log(`Successfully switched to ${backend}`);
+                    logMessage(`Switched to ${backend} backend`, 'SUCCESS');
+                    
+                    // Reload backend info and status
+                    await loadBackendInfo();
+                    await checkApiStatus();
+                } else {
+                    console.error(`Failed to switch backend: ${data.error}`);
+                    logMessage(`Failed to switch backend: ${data.error}`, 'ERROR');
+                    alert('Failed to switch backend: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Backend switch failed:', error);
+                logMessage(`Backend switch failed: ${error.message}`, 'ERROR');
+                alert('Backend switch failed: ' + error.message);
+            }
+        }
+
         async function checkApiStatus() {
             console.log("Checking API status...");
             try {
@@ -595,16 +901,21 @@
                 const text = document.getElementById('status-text');
                 const configSection = document.getElementById('config-section');
                 
-                if (data.api_key_configured) {
+                if (data.backend && data.backend.available) {
                     indicator.className = 'status-indicator status-online';
-                    text.textContent = 'Ready to process';
+                    text.textContent = `Ready with ${data.backend.name}`;
                     configSection.style.display = 'none';
                     console.log("API status: Online and ready.");
-                } else {
+                } else if (data.backend && data.backend.current === 'assemblyai' && !data.api_key_configured) {
                     indicator.className = 'status-indicator status-warning';
-                    text.textContent = 'API key required';
+                    text.textContent = 'API key required for AssemblyAI';
                     configSection.style.display = 'block';
                     console.log("API status: API key required.");
+                } else {
+                    indicator.className = 'status-indicator status-warning';
+                    text.textContent = 'Backend not available';
+                    configSection.style.display = 'none';
+                    console.log("API status: Backend not available.");
                 }
             } catch (error) {
                 console.error("API status check failed:", error);

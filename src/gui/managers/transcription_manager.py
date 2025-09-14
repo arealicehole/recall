@@ -28,11 +28,11 @@ class TranscriptionManager:
         self,
         app: 'TranscriberApp',
         audio_handler: 'AudioHandler',
-        transcriber: 'Transcriber'
+        transcription_factory
     ):
         self.app = app
         self.audio_handler = audio_handler
-        self.transcriber = transcriber
+        self.transcription_factory = transcription_factory
     
     def start_transcription(self) -> None:
         """Validate inputs and start the transcription process in a background thread."""
@@ -44,19 +44,33 @@ class TranscriptionManager:
             messagebox.showerror("Error", "No files selected for transcription.")
             return
 
-        # Early API key check
-        if not self.app.config.api_key:
-            self.app.show_error_message(
-                "API Key Error",
-                "AssemblyAI API key not set. Please set it in Settings > API Key."
-            )
+        # Check if the selected backend is available
+        try:
+            transcription_service = self.transcription_factory.get_available_service()
+            backend_name = transcription_service.get_backend_name()
+            
+            if not transcription_service.is_available():
+                if self.app.config.transcriber_backend == "assemblyai":
+                    self.app.show_error_message(
+                        "API Key Error",
+                        "AssemblyAI API key not set. Please set it in Settings > API Key or switch to Local Whisper."
+                    )
+                else:
+                    self.app.show_error_message(
+                        "Backend Error", 
+                        f"Selected backend '{backend_name}' is not available."
+                    )
+                return
+                
+        except Exception as e:
+            self.app.show_error_message("Backend Error", str(e))
             return
             
         self.app.processing = True
         self.app.start_time = self.app.get_current_time()
         self.app.progress_tracker.reset_progress()
         
-        self.app.progress_tracker.update_status("Starting...", "processing")
+        self.app.progress_tracker.update_status(f"Starting with {backend_name}...", "processing")
         self.app.progress_tracker.update_elapsed_time()
 
         # Run file processing in a separate thread to keep UI responsive
@@ -70,6 +84,8 @@ class TranscriptionManager:
         Handles audio preparation, transcription, and progress updates.
         """
         try:
+            # Get the transcription service for the selected backend
+            transcription_service = self.transcription_factory.get_available_service()
             total_files = len(self.app.current_files)
             
             for i, file_path in enumerate(self.app.current_files):
@@ -89,15 +105,19 @@ class TranscriptionManager:
                     # Prepare audio file for transcription
                     prepared_path = self.audio_handler.prepare_audio(file_path)
                     
-                    # Transcribe the prepared file
-                    transcript = self.transcriber.transcribe_file(prepared_path)
+                    # Transcribe using the factory service
+                    transcript = transcription_service.transcribe_file(
+                        prepared_path,
+                        progress_callback=lambda msg, prog, status, extra=None: 
+                            self.app.after(0, self.app.progress_tracker.update_progress, msg, prog, status, extra)
+                    )
                     
                     # Clean up the temporary file if one was created
                     if prepared_path != file_path:
                         self.audio_handler.cleanup_temp_file(prepared_path)
                     
                     if not transcript or transcript.strip() == "":
-                        raise SilentAudioError("Transcription returned empty or silent result.")
+                        raise Exception("Transcription returned empty or silent result.")
                     
                     # Save the transcript
                     self._save_transcript(file_path, transcript)
@@ -108,7 +128,7 @@ class TranscriptionManager:
                         "processing"
                     )
 
-                except (AudioHandlerError, TranscriptionError) as e:
+                except Exception as e:
                     self.app.progress_tracker.update_progress(
                         f"✗ Error on {filename}: {e}", 
                         progress_percent, 
@@ -118,11 +138,8 @@ class TranscriptionManager:
             if self.app.processing:
                 self.app.progress_tracker.update_status("Completed", "completed")
             
-        except APIKeyError as e:
-            self.app.show_error_message("API Key Error", str(e))
-            self.app.progress_tracker.update_status("Failed", "error")
         except Exception as e:
-            self.app.show_error_message("An Unexpected Error Occurred", f"An unexpected error occurred: {e}")
+            self.app.show_error_message("Transcription Error", str(e))
             self.app.progress_tracker.update_status("Failed", "error")
         finally:
             self.app.processing = False

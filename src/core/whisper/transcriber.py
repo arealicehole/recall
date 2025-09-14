@@ -72,7 +72,11 @@ class WhisperTranscriber(BaseTranscriber):
             
             print(f"DEBUG: Starting Whisper transcription for {audio_path.name}")
             print(f"  Size: {file_size:.1f} MB")
-            print(f"  Diarization: {'enabled' if self.diarization_available else 'disabled'}")
+            use_diarization = getattr(self.config, 'enable_diarization', True) and self.diarization_available
+            diarization_status = 'enabled' if use_diarization else 'disabled'
+            if getattr(self.config, 'enable_diarization', True) and not self.diarization_available:
+                diarization_status = 'requested but not available on server'
+            print(f"  Diarization: {diarization_status}")
             
             # Create metrics tracker
             metrics = TranscriptionMetrics(str(audio_path), file_size)
@@ -88,17 +92,24 @@ class WhisperTranscriber(BaseTranscriber):
                 )
             
             # Create transcription config
+            # Use diarization if both enabled in config AND available in API
+            use_diarization = (
+                getattr(self.config, 'enable_diarization', True) and 
+                self.diarization_available
+            )
+            
             transcription_config = TranscriptionRequest(
-                enable_diarization=self.diarization_available,
+                enable_diarization=use_diarization,
                 language="en",
-                format="json"
+                format="json",
+                model=self.config.whisper_model if hasattr(self.config, 'whisper_model') else "tiny"
             )
             
             # Build multipart request
             body, boundary = self.request_builder.build_request(
                 audio_path, 
                 transcription_config, 
-                self.diarization_available
+                use_diarization
             )
             
             # Progress update: transcribing

@@ -7,6 +7,7 @@ from .features.configuration.settings import ConfigurationService
 from .features.transcription.factory import TranscriptionServiceFactory
 from .features.transcription.service import TranscriptionService
 from .features.audio.handler import AudioHandler
+from .models.config import AppConfig
 
 
 class ServiceContainer:
@@ -24,6 +25,10 @@ class ServiceContainer:
         if self._config_service is None:
             self._config_service = ConfigurationService()
         return self._config_service
+
+    def get_config(self) -> 'AppConfig':
+        """Get application configuration."""
+        return self.get_config_service().get_config()
 
     @lru_cache(maxsize=1)
     def get_transcription_factory(self) -> TranscriptionServiceFactory:

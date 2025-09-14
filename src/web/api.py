@@ -25,16 +25,19 @@ from src.core.audio_handler import AudioHandler
 from src.core.transcriber import Transcriber
 from src.core.jobs import TranscriptionJob
 from src.core.errors import RecallError, APIKeyError, AudioHandlerError, TranscriptionError, SilentAudioError
-from src.utils.config import Config
+from src.services import ServiceContainer
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
 app.config['UPLOAD_FOLDER'] = os.path.join(project_root, 'uploads')
 
-# Initialize components
-config = Config()
+# Initialize service container
+services = ServiceContainer()
+config = services.get_config()
+
+# Use the old AudioHandler for web API compatibility
+from src.core.audio_handler import AudioHandler
 audio_handler = AudioHandler(config)
-transcriber = Transcriber(config)
 
 # In-memory job tracking
 jobs = {}
@@ -72,8 +75,9 @@ def process_transcription_job(job_id):
                 if not prepared_path:
                     raise AudioHandlerError("Failed to prepare audio file for transcription")
                 
-                # Transcribe the prepared file
-                transcript = transcriber.transcribe_file(prepared_path)
+                # Get transcription service and transcribe
+                transcription_service = services.get_transcription_factory().get_available_service()
+                transcript = transcription_service.transcribe_file(prepared_path)
                 
                 # Clean up temporary file if it was created
                 if prepared_path != file_path:
@@ -159,10 +163,18 @@ def index():
 @app.route('/api/status')
 def api_status():
     """Check API status"""
+    transcription_service = services.get_transcription_factory().get_available_service()
+    
     return jsonify({
         'status': 'ok',
         'timestamp': datetime.now().isoformat(),
-        'api_key_configured': bool(config.api_key)
+        'backend': {
+            'current': config.transcriber_backend,
+            'name': transcription_service.get_backend_name(),
+            'available': transcription_service.is_available()
+        },
+        'api_key_configured': bool(config.assemblyai_api_key),
+        'whisper_url': config.whisper_api_url
     })
 
 @app.route('/api/upload', methods=['POST'])
@@ -175,9 +187,16 @@ def upload_files():
     if not files or all(f.filename == '' for f in files):
         return jsonify({'error': 'No files selected'}), 400
     
-    # Check API key
-    if not config.api_key:
-        raise APIKeyError("AssemblyAI API key not configured. Please set it via the /api/config endpoint.")
+    # Check if backend is available
+    try:
+        transcription_service = services.get_transcription_factory().get_available_service()
+        if not transcription_service.is_available():
+            if config.transcriber_backend == "assemblyai":
+                raise APIKeyError("AssemblyAI API key not configured. Please set it via the /api/config endpoint or switch to Local Whisper.")
+            else:
+                raise RecallError(f"Selected backend '{transcription_service.get_backend_name()}' is not available.")
+    except Exception as e:
+        raise RecallError(f"Backend error: {str(e)}")
     
     # Get output directory and same_as_input setting from form data
     output_directory = request.form.get('output_directory', 'transcripts').strip()
@@ -247,21 +266,83 @@ def api_config():
     """Get or set API configuration"""
     if request.method == 'GET':
         return jsonify({
-            'api_key_configured': bool(config.api_key),
-            'output_directory': config.output_dir
+            'api_key_configured': bool(config.assemblyai_api_key),
+            'output_directory': str(config.output_directory)
         })
     
     elif request.method == 'POST':
         data = request.get_json()
         if 'api_key' in data:
-            config.api_key = data['api_key']
+            config.assemblyai_api_key = data['api_key']
             # Save to config file
             config_path = os.path.expanduser('~/.recall/config.json')
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
             with open(config_path, 'w') as f:
-                json.dump({'api_key': config.api_key}, f)
+                json.dump({'api_key': config.assemblyai_api_key}, f)
         
         return jsonify({'success': True})
+
+@app.route('/api/backend', methods=['GET', 'POST'])
+def api_backend():
+    """Get or set backend configuration"""
+    if request.method == 'GET':
+        factory = services.get_transcription_factory()
+        available_backends = []
+        
+        for backend in factory.get_available_backends():
+            try:
+                service = factory.create_service(backend)
+                available_backends.append({
+                    'id': backend,
+                    'name': service.get_backend_name(),
+                    'available': service.is_available(),
+                    'supports_diarization': service.supports_diarization()
+                })
+            except Exception as e:
+                available_backends.append({
+                    'id': backend,
+                    'name': backend.title(),
+                    'available': False,
+                    'error': str(e)
+                })
+        
+        return jsonify({
+            'current_backend': config.transcriber_backend,
+            'whisper_model': config.whisper_model,
+            'enable_diarization': config.enable_diarization,
+            'available_backends': available_backends
+        })
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        
+        response = {'success': True}
+        
+        if 'backend' in data:
+            backend = data['backend']
+            if backend in services.get_transcription_factory().get_available_backends():
+                config.transcriber_backend = backend
+                response['backend'] = backend
+            else:
+                return jsonify({'error': 'Invalid backend'}), 400
+        
+        if 'model' in data:
+            model = data['model']
+            valid_models = ['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3']
+            if model in valid_models:
+                config.whisper_model = model
+                response['model'] = model
+            else:
+                return jsonify({'error': 'Invalid model'}), 400
+        
+        if 'enable_diarization' in data:
+            config.enable_diarization = bool(data['enable_diarization'])
+            response['enable_diarization'] = config.enable_diarization
+        
+        if not any(key in response for key in ['backend', 'model', 'enable_diarization']):
+            return jsonify({'error': 'No settings specified'}), 400
+            
+        return jsonify(response)
 
 @app.route('/api/download/<job_id>')
 def download_results(job_id):
