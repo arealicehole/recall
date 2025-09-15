@@ -4,6 +4,7 @@ pydub>=0.25.1
 python-dotenv>=1.0.0
 certifi>=2024.2.2
 requests>=2.31.0
+pydantic-settings>=2.0.0
 
 # Web App dependencies
 flask>=2.3.0
