@@ -79,7 +79,7 @@ class BaseTranscriber(ABC):
                 out_path = audio_dir / f"{Path(audio_path).stem}_transcription.txt"
             else:
                 # Save in the configured output directory
-                out_path = Path(self.config.output_dir) / f"{Path(audio_path).stem}_transcription.txt"
+                out_path = Path(self.config.output_directory) / f"{Path(audio_path).stem}_transcription.txt"
             
             out_path.write_text(transcription, encoding='utf-8')
             return str(out_path)

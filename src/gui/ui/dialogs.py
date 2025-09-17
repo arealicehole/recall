@@ -12,13 +12,13 @@ import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.utils.config import Config
+    from src.models.config import AppConfig
 
 
 class APIKeyDialog:
     """Dialog for API key configuration."""
     
-    def __init__(self, parent: ctk.CTk, config: 'Config', on_save_callback=None):
+    def __init__(self, parent: ctk.CTk, config: 'AppConfig', on_save_callback=None):
         self.parent = parent
         self.config = config
         self.on_save_callback = on_save_callback

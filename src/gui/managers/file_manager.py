@@ -8,17 +8,18 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 from typing import List, TYPE_CHECKING
+from pathlib import Path
 
 if TYPE_CHECKING:
     from src.gui.app import TranscriberApp
     from src.core.audio_handler import AudioHandler
-    from src.utils.config import Config
+    from src.models.config import AppConfig
 
 
 class FileManager:
     """Manages file selection and operations for the transcriber application."""
     
-    def __init__(self, app: 'TranscriberApp', audio_handler: 'AudioHandler', config: 'Config'):
+    def __init__(self, app: 'TranscriberApp', audio_handler: 'AudioHandler', config: 'AppConfig'):
         self.app = app
         self.audio_handler = audio_handler
         self.config = config
@@ -48,13 +49,13 @@ class FileManager:
             if self.app.same_dir_var.get():
                 self.app.output_path.delete(0, tk.END)
                 self.app.output_path.insert(0, dir_path)
-                self.config.output_dir = dir_path
+                self.config.output_directory = Path(dir_path)
     
     def select_output_directory(self) -> None:
         """Select output directory for transcriptions."""
-        dir_path = filedialog.askdirectory(initialdir=self.config.output_dir)
+        dir_path = filedialog.askdirectory(initialdir=str(self.config.output_directory))
         if dir_path:
-            self.config.output_dir = dir_path
+            self.config.output_directory = Path(dir_path)
             self.app.output_path.delete(0, tk.END)
             self.app.output_path.insert(0, dir_path)
     
@@ -90,7 +91,7 @@ class FileManager:
             self.app.output_path.configure(state=tk.NORMAL)
             self.app.select_output_btn.configure(state=tk.NORMAL)
             self.app.output_path.delete(0, tk.END)
-            self.app.output_path.insert(0, self.config.output_dir)
+            self.app.output_path.insert(0, str(self.config.output_directory))
     
     def _update_output_for_same_dir(self, file_paths: List[str]) -> None:
         """Update output path display when 'Same as input' is enabled."""
