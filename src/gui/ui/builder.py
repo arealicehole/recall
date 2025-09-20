@@ -148,7 +148,7 @@ class UIBuilder:
         self.app.model_var = tk.StringVar(value=self.app.config.whisper_model)
         self.app.model_dropdown = ctk.CTkOptionMenu(
             self.app.model_frame,
-            values=["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
+            values=["tiny", "base", "small", "large-v3"],
             variable=self.app.model_var,
             command=self.app.on_model_changed,
             width=120
@@ -178,13 +178,10 @@ class UIBuilder:
     def _get_model_info(self, model: str) -> str:
         """Get information about the selected model."""
         model_sizes = {
-            "tiny": "39M params, fastest, lowest accuracy",
-            "base": "74M params, fast, good accuracy",
-            "small": "244M params, balanced",
-            "medium": "769M params, slower, better accuracy",
-            "large": "1.5B params, slow, best accuracy",
-            "large-v2": "1.5B params, improved large",
-            "large-v3": "1.5B params, latest version"
+            "tiny": "39MB, fastest, good for draft transcripts",
+            "base": "74MB, fast, general purpose", 
+            "small": "244MB, medium speed, production quality",
+            "large-v3": "3.1GB, slowest, highest accuracy"
         }
         return model_sizes.get(model, "Unknown model")
         # Don't pack initially - will show when needed

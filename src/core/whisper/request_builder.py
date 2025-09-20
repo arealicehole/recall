@@ -95,6 +95,16 @@ class WhisperRequestBuilder:
             config.language.encode()
         ])
         
+        # Add model parameter if specified
+        if hasattr(config, 'model') and config.model:
+            body_parts.extend([
+                f'--{self.boundary}'.encode(),
+                b'Content-Disposition: form-data; name="model"',
+                b'',
+                config.model.encode()
+            ])
+            print(f"DEBUG: Model parameter added to request: {config.model}")
+        
         # End boundary
         body_parts.append(f'--{self.boundary}--'.encode())
         

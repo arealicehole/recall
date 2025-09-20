@@ -159,6 +159,7 @@ class TranscriberApp(ctk.CTk):
         """Handle Whisper model selection change."""
         # Update the configuration
         self.config.whisper_model = model
+        print(f"DEBUG: GUI model changed to: {model}")
         
         # Update the model info display
         model_sizes = {

@@ -20,7 +20,7 @@ class AppConfig(BaseSettings):
         description="Whisper API endpoint URL"
     )
     
-    whisper_model: Literal['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3'] = Field(
+    whisper_model: Literal['tiny', 'base', 'small', 'large-v3'] = Field(
         default='tiny',
         description="Whisper model size to use"
     )

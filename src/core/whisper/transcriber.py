@@ -17,7 +17,7 @@ class WhisperTranscriber(BaseTranscriber):
         super().__init__(config)
         
         # Get Whisper API URL from config or use default
-        self.api_url = getattr(config, 'whisper_api_url', 'http://127.0.0.1:8765')
+        self.api_url = getattr(config, 'whisper_api_url', 'http://127.0.0.1:8771')
         
         # Initialize components
         self.http_client = WhisperHTTPClient(self.api_url)
@@ -98,11 +98,14 @@ class WhisperTranscriber(BaseTranscriber):
                 self.diarization_available
             )
             
+            model_to_use = self.config.whisper_model if hasattr(self.config, 'whisper_model') else "tiny"
+            print(f"DEBUG: Using Whisper model: {model_to_use}")
+            
             transcription_config = TranscriptionRequest(
                 enable_diarization=use_diarization,
                 language="en",
                 format="json",
-                model=self.config.whisper_model if hasattr(self.config, 'whisper_model') else "tiny"
+                model=model_to_use
             )
             
             # Build multipart request
