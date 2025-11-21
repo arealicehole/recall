@@ -39,7 +39,8 @@ transcriber = Transcriber(config)
 # In-memory job tracking
 jobs = {}
 
-ALLOWED_EXTENSIONS = {'mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma', 'amr'}
+# Dynamically build allowed extensions from config
+ALLOWED_EXTENSIONS = {fmt.strip('.') for fmt in (config.supported_formats + config.supported_video_formats)}
 
 @app.errorhandler(RecallError)
 def handle_recall_error(error):

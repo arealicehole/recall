@@ -49,6 +49,12 @@ class Config:
     def supported_formats(self):
         """Return supported audio formats as an immutable tuple"""
         return ('.amr', '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.wma')
-    
+
+    @property
+    def supported_video_formats(self):
+        """Return supported video formats as an immutable tuple"""
+        return ('.mp4', '.mov', '.avi', '.mkv', '.flv', '.wmv')
+
     def is_supported_format(self, filename):
-        return any(filename.lower().endswith(fmt) for fmt in self.supported_formats) 
+        """Check if a file format is supported (audio or video)"""
+        return any(filename.lower().endswith(fmt) for fmt in self.supported_formats + self.supported_video_formats) 

@@ -367,28 +367,32 @@ class TranscriberApp(ctk.CTk):
             self.output_path.insert(0, dir_path)
             
     def select_files(self):
-        """Select multiple audio files for transcription"""
-        filetypes = [("Audio Files", " ".join(f"*{fmt}" for fmt in self.config.supported_formats))]
+        """Select multiple audio or video files for transcription"""
+        audio_formats = " ".join(f"*{f}" for f in self.config.supported_formats)
+        video_formats = " ".join(f"*{f}" for f in self.config.supported_video_formats)
+        all_formats = f"{audio_formats} {video_formats}"
+        
+        filetypes = [
+            ("All Media Files", all_formats),
+            ("Video Files", video_formats),
+            ("Audio Files", audio_formats),
+            ("All files", "*.*")
+        ]
+        
         file_paths = filedialog.askopenfilenames(filetypes=filetypes)
         if file_paths:
             self.current_files = list(file_paths)
             self.update_files_list()
             self.update_status("Ready", "info")
             
-            # Update output directory if checkbox is checked
             if self.same_dir_var.get():
-                # When "Same as input" is enabled, each file will be saved in its own directory
-                # Check if all files are from the same directory for display purposes
-                directories = [os.path.dirname(path) for path in file_paths]
-                if len(set(directories)) == 1:
-                    # All files are from the same directory - show that directory
-                    input_dir = directories[0]
+                directories = {os.path.dirname(path) for path in file_paths}
+                if len(directories) == 1:
                     self.output_path.delete(0, tk.END)
-                    self.output_path.insert(0, input_dir)
+                    self.output_path.insert(0, list(directories)[0])
                 else:
-                    # Files are from different directories - show a message indicating this
                     self.output_path.delete(0, tk.END)
-                    self.output_path.insert(0, "[Multiple directories - each transcript saved with its source]")
+                    self.output_path.insert(0, "[Multiple source directories]")
     
     def select_directory(self):
         dir_path = filedialog.askdirectory()
