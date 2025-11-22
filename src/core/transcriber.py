@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
 import time
-from typing import Callable
+import json
+from typing import Callable, Optional
 from datetime import datetime
 import assemblyai as aai
 import certifi
@@ -59,8 +60,9 @@ class Transcriber:
             self.transcriber = aai.Transcriber(config=transcriber_config)
         else:
             self.transcriber = None
-            
+
         self.metrics = []
+        self.last_transcript = None  # Store last transcript object for data export
         
     def transcribe_file(self, audio_path: str, progress_callback: Callable[[str, float, str, dict], None] = None) -> str:
         """Simple audio file transcription with detailed progress updates"""
@@ -104,7 +106,10 @@ class Transcriber:
             
             # Use AssemblyAI to transcribe
             transcript = self.transcriber.transcribe(str(audio_path))
-            
+
+            # Store transcript object for later use (JSON/SRT export)
+            self.last_transcript = transcript
+
             print(f"DEBUG: API response status: {transcript.status}")
             
             if transcript.status == aai.TranscriptStatus.error:
@@ -188,7 +193,7 @@ class Transcriber:
     
     def save_transcription(self, audio_path: str, transcription: str, same_as_input: bool = False) -> str:
         """Save transcription to file
-        
+
         Args:
             audio_path: Path to the original audio file
             transcription: The transcription text to save
@@ -202,12 +207,115 @@ class Transcriber:
             else:
                 # Save in the configured output directory
                 out_path = Path(self.config.output_dir) / f"{Path(audio_path).stem}_transcription.txt"
-            
+
             out_path.write_text(transcription, encoding='utf-8')
             return str(out_path)
         except Exception as e:
             print(f"Failed to save transcription: {e}")
             return ""
+
+    def save_transcript_data(self, audio_path: str, transcript: aai.Transcript, same_as_input: bool = False) -> dict:
+        """Save full transcript data as JSON for FFmpeg workflow
+
+        Args:
+            audio_path: Path to the original audio file
+            transcript: AssemblyAI transcript object
+            same_as_input: If True, save in the same directory as the audio file
+
+        Returns:
+            dict with paths to saved files
+        """
+        saved_files = {}
+
+        try:
+            # Determine output directory
+            if same_as_input:
+                output_dir = Path(audio_path).parent
+            else:
+                output_dir = Path(self.config.output_dir)
+
+            base_name = Path(audio_path).stem
+
+            # Build JSON data structure
+            data = {
+                "source_file": str(audio_path),
+                "transcript_id": transcript.id if hasattr(transcript, 'id') else None,
+                "status": str(transcript.status) if hasattr(transcript, 'status') else None,
+                "audio_duration": transcript.audio_duration if hasattr(transcript, 'audio_duration') else None,
+                "confidence": transcript.confidence if hasattr(transcript, 'confidence') else None,
+                "text": transcript.text if hasattr(transcript, 'text') else "",
+                "utterances": [],
+                "words": []
+            }
+
+            # Add utterances with timestamps (speaker-separated segments)
+            if hasattr(transcript, 'utterances') and transcript.utterances:
+                for utterance in transcript.utterances:
+                    data["utterances"].append({
+                        "speaker": utterance.speaker,
+                        "text": utterance.text,
+                        "start_ms": utterance.start,
+                        "end_ms": utterance.end,
+                        "start_time": self._ms_to_timestamp(utterance.start),
+                        "end_time": self._ms_to_timestamp(utterance.end),
+                        "confidence": utterance.confidence if hasattr(utterance, 'confidence') else None
+                    })
+
+            # Add word-level timestamps
+            if hasattr(transcript, 'words') and transcript.words:
+                for word in transcript.words:
+                    data["words"].append({
+                        "text": word.text,
+                        "start_ms": word.start,
+                        "end_ms": word.end,
+                        "start_time": self._ms_to_timestamp(word.start),
+                        "end_time": self._ms_to_timestamp(word.end),
+                        "confidence": word.confidence,
+                        "speaker": word.speaker if hasattr(word, 'speaker') else None
+                    })
+
+            # Save JSON file
+            json_path = output_dir / f"{base_name}_data.json"
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            saved_files['json'] = str(json_path)
+            print(f"DEBUG: Saved JSON data to {json_path}")
+
+            # Save SRT captions
+            srt_path = output_dir / f"{base_name}.srt"
+            try:
+                srt_content = transcript.export_subtitles_srt()
+                srt_path.write_text(srt_content, encoding='utf-8')
+                saved_files['srt'] = str(srt_path)
+                print(f"DEBUG: Saved SRT captions to {srt_path}")
+            except Exception as e:
+                print(f"WARNING: Failed to export SRT captions: {e}")
+
+            return saved_files
+
+        except Exception as e:
+            print(f"ERROR: Failed to save transcript data: {e}")
+            return saved_files
+
+    def _ms_to_timestamp(self, milliseconds: int) -> str:
+        """Convert milliseconds to HH:MM:SS.mmm format for FFmpeg
+
+        Args:
+            milliseconds: Time in milliseconds
+
+        Returns:
+            Formatted timestamp string
+        """
+        if milliseconds is None:
+            return "00:00:00.000"
+
+        total_seconds = milliseconds / 1000
+        hours = int(total_seconds // 3600)
+        minutes = int((total_seconds % 3600) // 60)
+        seconds = int(total_seconds % 60)
+        ms = int(milliseconds % 1000)
+
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{ms:03d}"
             
     def get_performance_summary(self) -> str:
         """Get a summary of all transcription performance metrics"""

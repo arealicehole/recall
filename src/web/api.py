@@ -118,13 +118,32 @@ def process_transcription_job(job_id):
                 
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(transcript)
-                
-                job.results.append({
+
+                # Export timestamps and captions if requested
+                result_data = {
                     'file': job.current_file,
                     'status': 'completed',
                     'transcript_path': output_path,
                     'transcript': transcript[:500] + '...' if len(transcript) > 500 else transcript
-                })
+                }
+
+                if job.export_timestamps and transcriber.last_transcript:
+                    try:
+                        saved_files = transcriber.save_transcript_data(
+                            file_path,
+                            transcriber.last_transcript,
+                            same_as_input=job.same_as_input
+                        )
+
+                        # Add paths to result data
+                        if 'json' in saved_files:
+                            result_data['json_path'] = saved_files['json']
+                        if 'srt' in saved_files:
+                            result_data['srt_path'] = saved_files['srt']
+                    except Exception as e:
+                        logging.warning(f"Failed to export timestamps for {job.current_file}: {e}")
+
+                job.results.append(result_data)
                 
             except Exception as e:
                 logging.exception(f"Failed to process file {job.current_file} for job {job_id}")
@@ -183,6 +202,7 @@ def upload_files():
     # Get output directory and same_as_input setting from form data
     output_directory = request.form.get('output_directory', 'transcripts').strip()
     same_as_input = request.form.get('same_as_input', 'false').lower() == 'true'
+    export_timestamps = request.form.get('export_timestamps', 'false').lower() == 'true'
     
     # Validate and create output directory if needed
     if not same_as_input:
@@ -215,7 +235,7 @@ def upload_files():
         raise RecallError("No valid audio files uploaded")
     
     # Create and start job with output settings
-    job = TranscriptionJob(job_id, uploaded_files, output_directory, same_as_input)
+    job = TranscriptionJob(job_id, uploaded_files, output_directory, same_as_input, export_timestamps)
     jobs[job_id] = job
     
     # Start processing in background
@@ -280,9 +300,18 @@ def download_results(job_id):
         for result in job.results:
             if result['status'] == 'completed':
                 try:
-                    # The transcript path is already a full, safe path
+                    # Add transcript file
                     if os.path.exists(result['transcript_path']):
                         zf.write(result['transcript_path'], os.path.basename(result['transcript_path']))
+
+                    # Add JSON data file if it exists
+                    if 'json_path' in result and os.path.exists(result['json_path']):
+                        zf.write(result['json_path'], os.path.basename(result['json_path']))
+
+                    # Add SRT caption file if it exists
+                    if 'srt_path' in result and os.path.exists(result['srt_path']):
+                        zf.write(result['srt_path'], os.path.basename(result['srt_path']))
+
                 except Exception as e:
                     print(f"Error adding file to zip: {e}")
 

@@ -419,6 +419,11 @@
                         <input type="checkbox" id="same-dir-checkbox">
                         <label for="same-dir-checkbox" style="cursor: pointer;">Save transcripts in same directory as input files</label>
                     </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                        <input type="checkbox" id="export-timestamps-checkbox">
+                        <label for="export-timestamps-checkbox" style="cursor: pointer;">Export timestamps and captions (for video editing)</label>
+                    </div>
                 </div>
 
                 <!-- Selected Files Display -->
@@ -799,8 +804,10 @@
             // Add output directory settings
             const outputDirectory = document.getElementById('output-path').value.trim() || 'transcripts';
             const sameAsInput = document.getElementById('same-dir-checkbox').checked;
+            const exportTimestamps = document.getElementById('export-timestamps-checkbox').checked;
             formData.append('output_directory', outputDirectory);
             formData.append('same_as_input', sameAsInput);
+            formData.append('export_timestamps', exportTimestamps);
             
             logMessage(`Starting transcription for ${selectedFiles.length} files`, 'INFO');
             logMessage(`Output directory: ${sameAsInput ? 'Same as input files' : outputDirectory}`, 'INFO');

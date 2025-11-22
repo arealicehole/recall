@@ -19,6 +19,13 @@ A Python desktop application that uses AssemblyAI's transcription API to transcr
 - **Error Recovery**: Robust error handling with per-file error reporting
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
+### 🎬 **Video Editing Features (NEW)**
+- **Timestamp Export**: Export word-level and utterance-level timestamps for video editing
+- **FFmpeg Integration**: Generate JSON data files with timestamps in FFmpeg-ready format (`HH:MM:SS.mmm`)
+- **SRT Caption Export**: Automatic generation of industry-standard subtitle files
+- **Claude-Assisted Editing**: AI-powered segment extraction based on transcript content
+- **Automated Workflow**: Extract specific quotes/segments from videos using timestamps
+
 ## Requirements
 
 - Python 3.9 or higher
@@ -91,18 +98,75 @@ python run.py
 4. Monitor real-time progress with performance metrics
 5. View detailed logs and completion status
 
+## Timestamp Export for Video Editing
+
+### Overview
+
+Enable **"Export timestamps and captions"** in the GUI to automatically generate three files for each transcription:
+
+1. **`filename_transcription.txt`** - Human-readable transcript with speaker labels
+2. **`filename_data.json`** - Complete timestamp data with FFmpeg-ready timestamps
+3. **`filename.srt`** - Standard subtitle format for video captions
+
+### Use Cases
+
+- **Automated Clip Extraction**: Use timestamps to extract specific segments from videos
+- **Social Media Content**: Create highlight reels from long-form interviews/content
+- **Caption Generation**: Add professional captions to videos for Instagram/TikTok/YouTube
+- **Speaker Isolation**: Extract all segments from a specific speaker
+- **AI-Assisted Editing**: Let Claude Code read the JSON and generate FFmpeg commands for you
+
+### Example Workflow
+
+1. **Transcribe video** with "Export timestamps" checkbox enabled
+2. **Review transcript** to identify interesting quotes
+3. **Tell Claude**: "Extract the segment where they say 'beat corporations'"
+4. **Claude reads** the `_data.json` file, finds exact timestamps
+5. **Claude generates** FFmpeg command: `ffmpeg -ss 00:00:20.700 -i video.mp4 -to 00:00:24.000 -c copy clip.mp4`
+6. **Result**: Precise clip extracted in seconds
+
+### Data Format
+
+The JSON file contains:
+- **Utterances**: Complete thoughts/sentences with speaker labels and timestamps
+- **Words**: Individual word-level timestamps for frame-accurate editing
+- **Timestamps**: Both milliseconds AND FFmpeg format (`HH:MM:SS.mmm`)
+- **Confidence scores**: Quality metrics for each segment
+- **Source file path**: Reference to original video/audio
+
+### Detailed Guide
+
+For comprehensive FFmpeg workflow documentation, see:
+**[Recall-FFmpeg-Workflow-Guide.md](https://github.com/yourusername/recall/blob/main/docs/Recall-FFmpeg-Workflow-Guide.md)**
+
+This guide includes:
+- Complete file format reference
+- FFmpeg command examples
+- Python automation scripts
+- Real-world workflow examples
+- Troubleshooting tips
+
 ## File Format Support
 
-The application supports all major audio formats:
-
+### Audio Formats
 - **AMR** (.amr)
-- **MP3** (.mp3) 
+- **MP3** (.mp3)
 - **WAV** (.wav)
 - **M4A** (.m4a)
 - **OGG** (.ogg)
 - **FLAC** (.flac)
 - **AAC** (.aac)
 - **WMA** (.wma)
+
+### Video Formats
+- **MP4** (.mp4)
+- **MOV** (.mov)
+- **AVI** (.avi)
+- **MKV** (.mkv)
+- **FLV** (.flv)
+- **WMV** (.wmv)
+
+> **Note**: Video files are automatically converted to audio for transcription. Use the timestamp export feature to edit the original video files based on the transcript.
 
 ## Transcription Features
 

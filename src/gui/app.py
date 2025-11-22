@@ -104,6 +104,18 @@ class TranscriberApp(ctk.CTk):
             command=self.toggle_same_directory
         )
         self.same_dir_checkbox.pack(side=tk.RIGHT, padx=5)
+
+        # Export timestamps checkbox (for FFmpeg workflow)
+        self.export_timestamps_frame = ctk.CTkFrame(self.left_frame)
+        self.export_timestamps_frame.pack(fill=tk.X, pady=5)
+
+        self.export_timestamps_var = tk.BooleanVar(value=self.config.export_timestamps)
+        self.export_timestamps_checkbox = ctk.CTkCheckBox(
+            self.export_timestamps_frame,
+            text="Export timestamps and captions (for video editing)",
+            variable=self.export_timestamps_var
+        )
+        self.export_timestamps_checkbox.pack(side=tk.LEFT, padx=5)
         
         # Files list
         self.files_frame = ctk.CTkFrame(self.left_frame)
@@ -558,20 +570,41 @@ class TranscriberApp(ctk.CTk):
                     
                     if not transcript or transcript.strip() == "":
                         raise SilentAudioError("Transcription returned empty or silent result.")
-                    
+
                     # Save the transcript
                     output_dir = self.output_path.get()
                     if self.same_dir_var.get():
                         output_dir = os.path.dirname(file_path)
-                    
+
                     filename = os.path.basename(file_path)
                     output_filename = f"{os.path.splitext(filename)[0]}_transcription.txt"
                     output_filepath = os.path.join(output_dir, output_filename)
-                    
+
                     os.makedirs(output_dir, exist_ok=True)
                     with open(output_filepath, 'w', encoding='utf-8') as f:
                         f.write(transcript)
-                        
+
+                    # Export timestamps and captions if checkbox is checked
+                    if self.export_timestamps_var.get() and self.transcriber.last_transcript:
+                        try:
+                            saved_files = self.transcriber.save_transcript_data(
+                                file_path,
+                                self.transcriber.last_transcript,
+                                same_as_input=self.same_dir_var.get()
+                            )
+
+                            # Log which files were saved
+                            if saved_files:
+                                log_msg = f"  → Exported: "
+                                if 'json' in saved_files:
+                                    log_msg += f"JSON data, "
+                                if 'srt' in saved_files:
+                                    log_msg += f"SRT captions"
+                                self.log_text.insert(tk.END, log_msg + "\n")
+                                self.log_text.see(tk.END)
+                        except Exception as e:
+                            print(f"WARNING: Failed to export timestamps: {e}")
+
                     self.update_progress(f"✓ Completed {filename}", progress_percent, "processing", extra={'transcript_path': output_filepath})
 
                 except (AudioHandlerError, TranscriptionError) as e:

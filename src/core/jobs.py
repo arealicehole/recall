@@ -10,11 +10,12 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 
 class TranscriptionJob:
     """Represents a single transcription job, which can contain multiple files."""
-    def __init__(self, job_id, files, output_directory=None, same_as_input=False):
+    def __init__(self, job_id, files, output_directory=None, same_as_input=False, export_timestamps=False):
         self.job_id = job_id
         self.files = files
         self.output_directory = output_directory if output_directory is not None else os.path.join(project_root, 'transcripts')
         self.same_as_input = same_as_input
+        self.export_timestamps = export_timestamps
         self.status = "pending"
         self.progress = 0
         self.current_file = ""

@@ -19,7 +19,10 @@ class Config:
             
         # Get output directory
         self.output_dir = os.getenv('OUTPUT_DIRECTORY', 'transcripts')
-        
+
+        # Export timestamps option (for FFmpeg workflow)
+        self.export_timestamps = os.getenv('EXPORT_TIMESTAMPS', 'false').lower() == 'true'
+
         # Only create directory if it's a valid path
         try:
             # Convert to Path object to handle Windows paths properly
