@@ -15,6 +15,11 @@ import time
 import threading
 from pathlib import Path
 
+# Fix Windows console encoding for Unicode/emoji characters
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)

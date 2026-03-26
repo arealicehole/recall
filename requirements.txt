@@ -1,5 +1,5 @@
 # Core dependencies
-assemblyai>=0.20.0
+assemblyai>=0.59.0
 pydub>=0.25.1
 python-dotenv>=1.0.0
 certifi>=2024.2.2

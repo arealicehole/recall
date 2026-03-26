@@ -52,10 +52,11 @@ class Transcriber:
         if config.api_key:
             aai.settings.api_key = config.api_key
             
-            # Create transcriber with nano model and speaker labels
+            # Create transcriber with universal-2 model and speaker labels
+            # Note: speech_models (plural) is recommended in the migration notice
             transcriber_config = aai.TranscriptionConfig(
                 speaker_labels=True,
-                speech_model=aai.SpeechModel.nano
+                speech_models=["universal-2"]
             )
             self.transcriber = aai.Transcriber(config=transcriber_config)
         else:
