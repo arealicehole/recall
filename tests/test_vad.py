@@ -190,6 +190,28 @@ Duration: 00:01:30.00, start: 0.000000, bitrate: 128 kb/s
         finally:
             os.unlink(tmp_path)
 
+    @patch('subprocess.run')
+    def test_detect_speech_segments_avoids_tiny_tail_chunks(self, mock_run):
+        """Chunking should not emit tiny leftover segments that cause hallucinations."""
+        from src.core.vad import detect_speech_segments
+
+        mock_result = MagicMock()
+        mock_result.stderr = """
+Duration: 00:00:30.10, start: 0.000000, bitrate: 128 kb/s
+"""
+        mock_run.return_value = mock_result
+
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake')
+            tmp_path = f.name
+
+        try:
+            segments, duration = detect_speech_segments(tmp_path, chunk_size=30, min_segment=0.3)
+            assert duration == 30.1
+            assert segments == [(0.0, 30.1)]
+        finally:
+            os.unlink(tmp_path)
+
     def test_file_not_found(self):
         """Test FileNotFoundError for missing file."""
         from src.core.vad import detect_speech_segments

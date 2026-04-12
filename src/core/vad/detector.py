@@ -100,14 +100,27 @@ def detect_speech_segments(
     # Chunk into ~chunk_size blocks for efficient API calls
     chunked = []
     for start, end in merged:
-        if end - start <= chunk_size:
+        segment_duration = end - start
+        if segment_duration <= chunk_size:
             chunked.append((start, end))
-        else:
-            pos = start
-            while pos < end:
-                chunk_end = min(pos + chunk_size, end)
-                chunked.append((pos, chunk_end))
-                pos = chunk_end
+            continue
+
+        pos = start
+        parent_chunks = []
+        while pos < end:
+            chunk_end = min(pos + chunk_size, end)
+            parent_chunks.append((pos, chunk_end))
+            pos = chunk_end
+
+        # Avoid tiny leftover tail chunks — merge them back into the previous chunk.
+        if len(parent_chunks) >= 2:
+            last_start, last_end = parent_chunks[-1]
+            if (last_end - last_start) < min_segment:
+                prev_start, _ = parent_chunks[-2]
+                parent_chunks[-2] = (prev_start, last_end)
+                parent_chunks.pop()
+
+        chunked.extend(parent_chunks)
 
     speech_time = sum(e - s for s, e in chunked)
     logger.info(
