@@ -21,7 +21,7 @@ class AppConfig(BaseSettings):
     )
     
     whisper_model: Literal['tiny', 'base', 'small', 'large-v3'] = Field(
-        default='tiny',
+        default='base',
         description="Whisper model size to use"
     )
     

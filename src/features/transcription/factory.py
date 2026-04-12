@@ -5,20 +5,31 @@ from functools import lru_cache
 
 from .service import TranscriptionService
 from .whisper import WhisperTranscriptionService
-from .assemblyai import AssemblyAITranscriptionService
 from .vad import VADTranscriptionService
 from ...models.config import AppConfig
 from ...features.configuration.settings import ConfigurationService
+
+
+def _build_service_registry() -> Dict[str, Type[TranscriptionService]]:
+    """Build service registry, only including optional backends when importable."""
+    services: Dict[str, Type[TranscriptionService]] = {
+        'whisper': WhisperTranscriptionService,
+    }
+
+    try:
+        from .assemblyai import AssemblyAITranscriptionService
+        services['assemblyai'] = AssemblyAITranscriptionService
+    except ModuleNotFoundError:
+        pass
+
+    return services
 
 
 class TranscriptionServiceFactory:
     """Factory for creating transcription service instances."""
 
     # Registry of available transcription services
-    _services: Dict[str, Type[TranscriptionService]] = {
-        'whisper': WhisperTranscriptionService,
-        'assemblyai': AssemblyAITranscriptionService,
-    }
+    _services: Dict[str, Type[TranscriptionService]] = _build_service_registry()
 
     def __init__(self, config_service: ConfigurationService):
         """Initialize factory with configuration service."""
