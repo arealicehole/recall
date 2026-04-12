@@ -29,7 +29,32 @@ class AppConfig(BaseSettings):
         default=True,
         description="Enable speaker diarization (speaker identification)"
     )
-    
+
+    # VAD (Voice Activity Detection) settings
+    vad_enabled: bool = Field(
+        default=True,
+        env='VAD_ENABLED',
+        description="Enable VAD preprocessing before transcription"
+    )
+
+    vad_noise_db: int = Field(
+        default=-30,
+        env='VAD_NOISE_DB',
+        description="Silence threshold in dB for VAD"
+    )
+
+    vad_min_silence: float = Field(
+        default=0.5,
+        env='VAD_MIN_SILENCE',
+        description="Minimum silence duration in seconds"
+    )
+
+    vad_chunk_size: int = Field(
+        default=30,
+        env='VAD_CHUNK_SIZE',
+        description="Maximum chunk size in seconds for transcription"
+    )
+
     # API Keys
     assemblyai_api_key: Optional[str] = Field(
         default=None,

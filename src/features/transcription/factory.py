@@ -6,6 +6,7 @@ from functools import lru_cache
 from .service import TranscriptionService
 from .whisper import WhisperTranscriptionService
 from .assemblyai import AssemblyAITranscriptionService
+from .vad import VADTranscriptionService
 from ...models.config import AppConfig
 from ...features.configuration.settings import ConfigurationService
 
@@ -39,16 +40,26 @@ class TranscriptionServiceFactory:
         """Get list of available backend names."""
         return list(cls._services.keys())
 
+    def _maybe_wrap_with_vad(
+        self, service: TranscriptionService, config: AppConfig
+    ) -> TranscriptionService:
+        """Wrap service with VAD if enabled in config."""
+        if getattr(config, 'vad_enabled', True):
+            return VADTranscriptionService(config, service)
+        return service
+
     def create_service(self, backend: Optional[str] = None) -> TranscriptionService:
         """
         Create transcription service instance.
+        
+        If VAD is enabled in config, wraps the base service with VAD preprocessing.
         
         Args:
             backend: Backend name ('whisper', 'assemblyai'). 
                     If None, uses configured default.
             
         Returns:
-            TranscriptionService instance
+            TranscriptionService instance (potentially wrapped with VAD)
             
         Raises:
             ValueError: If backend is not supported
@@ -63,8 +74,9 @@ class TranscriptionServiceFactory:
         
         config = self.config_service.get_config()
         service_class = self._services[backend]
-        
-        return service_class(config)
+        base_service = service_class(config)
+
+        return self._maybe_wrap_with_vad(base_service, config)
 
     @lru_cache(maxsize=2)
     def get_service(self, backend: Optional[str] = None) -> TranscriptionService:
